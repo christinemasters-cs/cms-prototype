@@ -31,13 +31,13 @@ export function PolarisPanel() {
       <Button
         variant="ghost"
         size="icon"
-        className="h-10 w-10"
+        className="h-8 w-8"
         aria-label="Open Polaris"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <PolarisIcon className="h-5 w-5" />
+        <PolarisIcon className="h-4 w-4" />
       </Button>
 
       {open ? (

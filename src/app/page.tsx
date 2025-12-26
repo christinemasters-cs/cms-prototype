@@ -8,7 +8,6 @@ import {
   ImagePlus,
   LayoutTemplate,
   LayoutGrid,
-  Lock,
   Palette,
   Rocket,
   Search,
@@ -109,6 +108,8 @@ const trainingCards = [
     duration: "13m 16s",
     icon: Sparkles,
     imageSrc: "/Omni-channel_Personalization_Thumbnail.jpg",
+    description:
+      "This video walks through how Red Panda Resort uses Contentstack with Data and Insights.",
   },
   {
     title: "Understanding Journey Orchestration",
@@ -116,6 +117,8 @@ const trainingCards = [
     duration: "12m",
     icon: BookOpen,
     imageSrc: "/JourneyFlows_Thumb.jpg",
+    description:
+      "Flows makes it easy for marketers, product, and dev teams to orchestrate experiences.",
   },
   {
     title: "Understanding Automate",
@@ -123,6 +126,8 @@ const trainingCards = [
     duration: "9m 39s",
     icon: Workflow,
     imageSrc: "/UnderstandingAutomate_thumbnail.jpg",
+    description:
+      "This video demonstrates how users can set up automated actions with ease.",
   },
   {
     title: "Kickstart Next.js: Code Overview",
@@ -130,6 +135,8 @@ const trainingCards = [
     duration: "8m 58s",
     icon: Code2,
     imageSrc: "/Coding_Thumbnail_Kickstart_NextJS.jpg",
+    description:
+      "A lightweight Next.js boilerplate to get you up and running with Contentstack.",
   },
 ];
 
@@ -180,30 +187,30 @@ export default function Home() {
   return (
     <div className="dashboard-page min-h-screen bg-[color:var(--color-background)]">
       <header className="sticky top-0 z-20 border-b border-[color:var(--color-border)] bg-[color:var(--color-surface)]/90 backdrop-blur">
-        <div className="mx-auto flex w-full items-center justify-between px-6 py-4">
+        <div className="mx-auto flex w-full items-center justify-between px-6 py-3">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand)]">
               <span className="text-sm font-semibold">CS</span>
             </div>
-            <span className="text-base font-semibold tracking-tight">
+            <span className="text-sm font-semibold tracking-tight">
               Contentstack
             </span>
           </div>
           <div className="flex items-center gap-2">
             <PolarisPanel />
-            <Button variant="ghost" size="icon" aria-label="Search" className="h-10 w-10">
-              <Search className="h-5 w-5" />
+            <Button variant="ghost" size="icon" aria-label="Search" className="h-8 w-8">
+              <Search className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" aria-label="Notifications" className="h-10 w-10">
-              <Bell className="h-5 w-5" />
+            <Button variant="ghost" size="icon" aria-label="Notifications" className="h-8 w-8">
+              <Bell className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" aria-label="Help" className="h-10 w-10">
-              <HelpCircle className="h-5 w-5" />
+            <Button variant="ghost" size="icon" aria-label="Help" className="h-8 w-8">
+              <HelpCircle className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" aria-label="Apps" className="h-10 w-10">
-              <LayoutGrid className="h-5 w-5" />
+            <Button variant="ghost" size="icon" aria-label="Apps" className="h-8 w-8">
+              <LayoutGrid className="h-4 w-4" />
             </Button>
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] text-xs font-semibold">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] text-[11px] font-semibold">
               CM
             </div>
           </div>
@@ -212,27 +219,27 @@ export default function Home() {
 
       <main className="mx-auto grid w-full gap-10 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_29.5%] lg:grid-rows-[auto_1fr]">
         <div className="space-y-1 lg:col-start-1 lg:row-start-1">
-            <h1 className="font-display text-[24px] font-semibold leading-[32px] tracking-tight text-[color:var(--text-primary-text-gray-900-body-black)]">
-              Welcome, Christine
-            </h1>
-            <p className="text-[14px] font-semibold text-[color:var(--text-secondary-text-purple-gray)]">
-              Organization Name: BambooHR Trial
-            </p>
-          </div>
+          <h1 className="text-[20px] font-semibold leading-[28px] tracking-tight text-[color:var(--text-primary-text-gray-900-body-black)]">
+            Welcome, Christine
+          </h1>
+          <p className="text-[12px] font-medium text-[color:var(--text-secondary-text-purple-gray)]">
+            Organization Name: BambooHR Trial
+          </p>
+        </div>
 
         <section className="space-y-8 lg:col-start-1 lg:row-start-2">
           <section className="space-y-3">
-            <h2 className="text-[20px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+            <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
               Explore Apps
             </h2>
-            <div className="grid justify-start gap-3 [grid-template-columns:repeat(auto-fill,minmax(210px,210px))]">
+            <div className="grid justify-start gap-3 [grid-template-columns:repeat(auto-fill,minmax(190px,190px))]">
               {appCards.map((app) => {
                 const Icon = app.icon;
                 const isDisabled = Boolean(app.disabled);
                 return (
                   <Card
                     key={app.title}
-                    className={`widget-container w-[210px] shadow-sm transition ${
+                    className={`widget-container w-[190px] shadow-sm transition ${
                       isDisabled
                         ? "disabled"
                         : "hover:border-[color:var(--color-brand)] hover:shadow-md"
@@ -243,16 +250,11 @@ export default function Home() {
                   >
                     <CardHeader className="product-details-container gap-2">
                       <div className="product-icon-container">
-                        {isDisabled ? (
-                          <span className="lock-icon text-[color:var(--color-muted)]">
-                            <Lock className="h-4 w-4" />
-                          </span>
-                        ) : null}
                         <div className="product-icon-wrapper text-[color:var(--color-brand)]">
                           <Icon className="h-5 w-5" />
                         </div>
                       </div>
-                      <CardTitle className="academic-card-title text-[15px] font-semibold text-[color:var(--text-primary-text-gray-900-body-black)]">
+                      <CardTitle className="academic-card-title text-[14px] font-semibold text-[color:var(--text-primary-text-gray-900-body-black)]">
                         {app.title}
                       </CardTitle>
                       <CardDescription className="product-description">
@@ -267,18 +269,18 @@ export default function Home() {
 
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-[20px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+              <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
                 Level Up with Role-Based Training & Certifications
               </h2>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-[14px] font-semibold text-[color:var(--color-brand)]"
+                className="text-[12px] font-semibold text-[color:var(--color-brand)]"
               >
                 See all
               </Button>
             </div>
-            <div className="grid justify-start gap-4 [grid-template-columns:repeat(auto-fill,minmax(20.313rem,20.313rem))]">
+            <div className="grid justify-start gap-4 [grid-template-columns:repeat(auto-fill,minmax(15.5rem,15.5rem))]">
               {trainingCards.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -307,11 +309,14 @@ export default function Home() {
                       >
                         {item.label}
                       </Badge>
-                      <CardTitle className="academic-card-title text-[15px] font-semibold">
+                      <CardTitle className="academic-card-title text-[14px] font-semibold">
                         {item.title}
                       </CardTitle>
-                      <CardDescription className="text-[14px] text-[color:var(--text-secondary-text-purple-gray)]">
+                      <CardDescription className="text-[12px] text-[color:var(--text-secondary-text-purple-gray)]">
                         {item.duration}
+                      </CardDescription>
+                      <CardDescription className="academic-card-description">
+                        {item.description}
                       </CardDescription>
                     </CardHeader>
                   </Card>
@@ -323,13 +328,13 @@ export default function Home() {
           <section className="grid gap-6 xl:grid-cols-2">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-[20px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+                <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
                   Product Changelog
                 </h2>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-[14px] font-semibold text-[color:var(--color-brand)]"
+                  className="text-[12px] font-semibold text-[color:var(--color-brand)]"
                 >
                   See all
                 </Button>
@@ -362,13 +367,13 @@ export default function Home() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-[20px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+                <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
                   Contentstack Pulse
                 </h2>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-[14px] font-semibold text-[color:var(--color-brand)]"
+                  className="text-[12px] font-semibold text-[color:var(--color-brand)]"
                 >
                   See all
                 </Button>
@@ -397,7 +402,7 @@ export default function Home() {
 
         <aside className="hidden w-full flex-col gap-6 lg:col-start-2 lg:row-start-2 lg:flex">
           <div className="space-y-2">
-            <h3 className="text-[20px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+            <h3 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
               Quick Links
             </h3>
             <Card className="widget-container shadow-sm">
@@ -410,10 +415,10 @@ export default function Home() {
                       className="flex w-full items-center gap-3 px-2 py-3 text-sm text-[color:var(--color-foreground)] transition hover:bg-[color:var(--color-surface-muted)] active:bg-[color:var(--color-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand)] focus-visible:ring-offset-2"
                       type="button"
                     >
-                      <span className="flex h-8 w-8 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] text-[color:var(--color-muted)]">
-                        <Icon className="h-4 w-4" />
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] text-[color:var(--color-muted)]">
+                        <Icon className="h-3.5 w-3.5" />
                       </span>
-                      <span className="quickLink text-[13px] font-semibold">
+                      <span className="quickLink text-[12px] font-semibold">
                         {link.label}
                       </span>
                     </button>

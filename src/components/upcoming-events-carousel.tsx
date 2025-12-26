@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import Image from "next/image";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ const events = [
     title: "Gartner Marketing Symposium 2026",
     date: "May 11-12, 2026",
     description:
-      "This year's marketing conference theme is Build What's Next: Marketing Leadership in an AI-Driven World.",
+      "This year's marketing conference 2026 theme is Build What's Next: Marketing Leadership in an AI-Driven World.",
     imageSrc: "/Gartner_Marketing_Symposium_UK.png",
     tag: "Event",
   },
@@ -64,13 +65,13 @@ export function UpcomingEventsCarousel() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-[20px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+        <h3 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
           Upcoming Events
         </h3>
         <Button
           variant="ghost"
           size="sm"
-          className="text-[14px] font-semibold text-[color:var(--color-brand)]"
+          className="text-[12px] font-semibold text-[color:var(--color-brand)]"
         >
           See All (5)
         </Button>
@@ -107,11 +108,11 @@ export function UpcomingEventsCarousel() {
               >
                 {event.tag}
               </Badge>
-              <p className="text-[15px] font-semibold">{event.title}</p>
-              <p className="text-[14px] text-[color:var(--text-secondary-text-purple-gray)]">
-                {event.date}
-              </p>
-              <p className="carouselDescription text-[14px]">
+              <div className="carouselMeta">
+                <span>{event.title}</span>
+                <span className="carouselMetaDate">| {event.date}</span>
+              </div>
+              <p className="carouselDescription">
                 {event.description}
               </p>
               <div className="carouselActionCont">
@@ -119,7 +120,7 @@ export function UpcomingEventsCarousel() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="carousel-button text-[color:var(--color-brand)]"
+                    className="carousel-button h-7 rounded-md px-3 text-[12px] text-[color:var(--color-brand)]"
                   >
                     Register
                   </Button>
@@ -127,17 +128,19 @@ export function UpcomingEventsCarousel() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="carousel-button text-xs font-semibold text-[color:var(--color-muted)] transition hover:text-[color:var(--color-brand)]"
+                    className="carousel-button flex items-center gap-1 text-[11px] font-semibold text-[color:var(--color-muted)] transition hover:text-[color:var(--color-brand)]"
                     onClick={handlePrevious}
                   >
+                    <ChevronLeft className="h-3 w-3" />
                     Previous
                   </button>
                   <button
                     type="button"
-                    className="carousel-button text-xs font-semibold text-[color:var(--color-muted)] transition hover:text-[color:var(--color-brand)]"
+                    className="carousel-button flex items-center gap-1 text-[11px] font-semibold text-[color:var(--color-muted)] transition hover:text-[color:var(--color-brand)]"
                     onClick={handleNext}
                   >
                     Next
+                    <ChevronRight className="h-3 w-3" />
                   </button>
                 </div>
               </div>
