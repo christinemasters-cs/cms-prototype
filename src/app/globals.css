@@ -1,4 +1,6 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
+@import "../../_vendor/marketplace-app-boilerplate/src/containers/index.css";
 
 :root {
   --background: #f6f7fb;
@@ -9,6 +11,13 @@
   --muted: #6e6b86;
   --brand: #6c5ce7;
   --brand-soft: #efeaff;
+  --text-secondary-text-tarmac-grey-n-700: #475161;
+  --text-secondary-text-purple-gray: #6e6b86;
+  --text-primary-text-gray-900-body-black: #212121;
+  --brand-colors-orchid-purple-p-400-primary: #6c5ce7;
+  --bg-colors-dolphin-grey-n-200: #dde3ee;
+  --bg-colors-tulip-purple-p-5: #f9f8ff;
+  --bg-colors-pure-white: #ffffff;
 }
 
 @theme inline {
@@ -30,6 +39,20 @@ body {
   font-family: var(--font-inter), system-ui, sans-serif;
 }
 
+.dashboard-page p {
+  text-align: left;
+  font-size: inherit;
+  line-height: 1.4;
+}
+
+.dashboard-page a {
+  text-align: left;
+}
+
+.dashboard-page {
+  font-size: 16px;
+}
+
 .line-clamp-1 {
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -42,4 +65,294 @@ body {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.secondaryText {
+  color: var(--color-muted);
+}
+
+.widget-container {
+  border: 1px solid hsl(219, 33%, 90%);
+  border-radius: 8px;
+  background-color: #ffffff;
+}
+
+.widget-container[role="button"] {
+  cursor: pointer;
+  outline: none;
+}
+
+.widget-container[role="button"]:focus {
+  outline: 2px solid #3a84f6;
+  outline-offset: 2px;
+}
+
+.widget-container[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+.product-icon-container {
+  position: relative;
+  border-radius: 8px;
+  background-color: #f9f8ff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  margin-bottom: 12px;
+  height: 6rem;
+}
+
+.lock-icon {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+}
+
+.product-icon-wrapper {
+  background-color: #ffffff;
+  border-radius: 4px;
+  padding: 10px 8px;
+  height: fit-content;
+}
+
+.product-description {
+  color: #6e6b86;
+  font-weight: 400;
+  font-size: 13px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-details-container {
+  text-align: left;
+}
+
+.disabled {
+  opacity: 0.4;
+  pointer-events: auto;
+}
+
+.dashboard-tag {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-muted);
+  padding: 4px 8px;
+  letter-spacing: 0.5px;
+}
+
+.courseImage {
+  margin-bottom: 0;
+  height: 10.313rem;
+  border-radius: 4px;
+}
+
+.academic-card-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.academic-card-container {
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  background: #ffffff;
+  display: flex;
+  align-items: flex-start;
+  height: 19.875rem;
+  width: 20.313rem;
+  flex-direction: column;
+}
+
+.academic-card-description {
+  font-size: 14px;
+  color: #6e6b86;
+  margin-top: 2px;
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+}
+
+.quickLink {
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+.quickLink:hover {
+  color: #7c6ef2;
+}
+
+.clickable-card {
+  cursor: pointer;
+  outline: none;
+}
+
+.clickable-card:focus-visible {
+  outline: 2px solid #3a84f6;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(58, 132, 246, 0.3);
+}
+
+.changeLogCont {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  overflow: hidden;
+  width: 100%;
+}
+
+.changeLogDesc {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex-grow: 1;
+}
+
+.changeLogTitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.changeLogDate {
+  color: var(--color-muted);
+  margin-top: 0.25rem;
+  font-size: 12px;
+}
+
+.changeLogTag {
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+
+.changeLogCont:hover .changeLogTitle {
+  color: #373553;
+}
+
+.carouselViewport {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  padding: 1rem 0;
+  border: 1px solid #dde3ee;
+  border-radius: 0.5rem;
+  background-color: #ffffff;
+}
+
+.carouselSlidesWrapper {
+  display: flex;
+  transition: transform 300ms ease-in-out;
+  will-change: transform;
+}
+
+.carouselSlidesWrapper.hovering {
+  transition: transform 300ms linear;
+}
+
+.carouselSlide {
+  flex: 0 0 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 1rem;
+}
+
+.carouselImage {
+  border-radius: 4px;
+  margin-bottom: 12px;
+  height: 100%;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.carouselActionCont {
+  display: flex;
+  justify-content: space-between;
+}
+
+.carouselDescription {
+  color: #6e6b86;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 12px;
+}
+
+.carouselTag {
+  background-color: #ffffff;
+  margin-bottom: 12px;
+  width: auto;
+  display: inline-block;
+}
+
+.carousel-button {
+  width: 100px;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  text-align: center;
+}
+
+.carousel-button-ellipse > * {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 100% !important;
+}
+
+.carousel-button-ellipse button,
+.carousel-button-ellipse span,
+.carousel-button-ellipse div {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 100% !important;
+}
+
+.display-inline {
+  display: inline;
+}
+
+.singleLine {
+  -webkit-line-clamp: 1;
+}
+
+.carouselCont:focus {
+  outline: 2px solid #3a84f6;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(58, 132, 246, 0.3);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.carousel-button:focus,
+.carouselActionCont button:focus {
+  outline: 2px solid #3a84f6;
+  outline-offset: 2px;
 }
