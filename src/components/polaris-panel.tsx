@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { Bot, X } from "lucide-react";
+import { Lightbulb, MoreVertical, Send, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,18 @@ import { Separator } from "@/components/ui/separator";
 
 export function PolarisPanel() {
   const [open, setOpen] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<
+    Array<{
+      id: string;
+      role: "user" | "assistant";
+      content: string;
+      summary?: string;
+      toolsUsed?: string[];
+    }>
+  >([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
   const panelId = useId();
 
   useEffect(() => {
@@ -26,6 +38,68 @@ export function PolarisPanel() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open]);
 
+  const handleSubmit = async () => {
+    if (!input.trim() || loading) {
+      return;
+    }
+
+    const content = input.trim();
+    const userMessage = { id: crypto.randomUUID(), role: "user" as const, content };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/polaris/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          message: content,
+        }),
+      });
+
+      const data = (await response.json()) as {
+        sessionId?: string;
+        reply?: string;
+        summary?: string;
+        toolsUsed?: string[];
+        error?: string;
+      };
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error ?? "Something went wrong.");
+      }
+
+      if (data.sessionId) {
+        setSessionId(data.sessionId);
+      }
+
+      const reply = data.reply ?? "No response.";
+      const summary = data.summary ?? "";
+      const toolsUsed = data.toolsUsed ?? [];
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: reply,
+          summary,
+          toolsUsed,
+        },
+      ]);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to send message.";
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: "assistant", content: message },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <Button
@@ -37,53 +111,133 @@ export function PolarisPanel() {
         aria-controls={panelId}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <PolarisIcon className="h-4 w-4" />
+        <PolarisIcon className="h-8 w-8" />
       </Button>
 
       {open ? (
         <aside
           id={panelId}
-          className="fixed right-6 top-24 z-30 hidden w-80 flex-col gap-4 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-4 shadow-lg xl:flex"
+          className="fixed right-4 top-10 z-30 flex h-[calc(100vh-56px)] w-[540px] flex-col rounded-md border border-transparent bg-[color:var(--color-surface)] shadow-[0_0_1.5rem_rgba(0,0,0,0.17)]"
           role="dialog"
           aria-label="Polaris assistant"
           aria-modal="false"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand)]">
-                <Bot className="h-4 w-4" />
-              </span>
+          <div className="flex items-center justify-between border-b border-[color:var(--color-border)] px-5 py-3.5">
+            <div className="flex items-center gap-2 text-[15px] font-semibold">
+              <PolarisIcon className="h-5 w-5 text-[color:var(--color-brand)]" />
               Polaris
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Close Polaris"
-              onClick={() => setOpen(false)}
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" aria-label="Polaris options">
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Close Polaris"
+                onClick={() => setOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-1 flex-col overflow-hidden px-8 py-8">
+            {messages.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center gap-3 text-center">
+                <PolarisIcon className="h-[60px] w-[60px] text-[color:var(--color-brand)]" />
+                <h3 className="text-[20px] font-semibold text-[color:var(--color-foreground)]">
+                  Introducing Polaris
+                </h3>
+                <div className="max-w-[360px] text-center text-[0.875rem] leading-[1.5] text-[#6b7280]">
+                  <span className="font-semibold">
+                    A virtual co-worker helping you get more done across Contentstack.
+                    <br />
+                  </span>{" "}
+                  <span className="font-normal">
+                    Try asking, &quot;What can you do?&quot;
+                  </span>
+                </div>
+                <Separator className="mt-4 w-full" />
+              </div>
+            ) : (
+              <div className="flex flex-1 flex-col gap-4 overflow-y-auto pr-2">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`rounded-lg border px-4 py-3 text-sm ${
+                      message.role === "user"
+                        ? "ml-auto max-w-[85%] border-[color:var(--color-brand)] bg-[color:var(--color-brand-soft)] text-[color:var(--color-foreground)]"
+                        : "mr-auto max-w-[90%] border-[color:var(--color-border)] bg-white text-[color:var(--color-foreground)]"
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    {message.role === "assistant" &&
+                    message.toolsUsed &&
+                    message.toolsUsed.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[color:var(--color-muted)]">
+                        {message.toolsUsed.map((tool) => (
+                          <span
+                            key={`${message.id}-${tool}`}
+                            className="rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] px-2 py-0.5"
+                          >
+                            {tool}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {message.role === "assistant" && message.summary ? (
+                      <div className="mt-3 rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] px-3 py-2 text-[12px] text-[color:var(--color-muted)]">
+                        {message.summary}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+                {loading ? (
+                  <div className="mr-auto max-w-[60%] rounded-lg border border-[color:var(--color-border)] bg-white px-4 py-3 text-sm text-[color:var(--color-muted)]">
+                    Thinking...
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+          <div className="space-y-2 px-5 py-4">
+            <form
+              className="rounded-md bg-gradient-to-r from-[#6c5ce7] via-[#8b7cf6] to-[#6c5ce7] p-[1px]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleSubmit();
+              }}
             >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <Separator />
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 py-10 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand)]">
-              <PolarisIcon className="h-8 w-8" />
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Introducing Polaris</p>
-              <p className="text-xs text-[color:var(--color-muted)]">
-                A virtual co-worker helping you get more done across Contentstack.
+              <div className="relative rounded-[5px] bg-white">
+                <Input
+                  placeholder="Describe what you would like to do..."
+                  className="h-10 border-0 pr-10 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0"
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  disabled={loading}
+                />
+                <Button
+                  type="submit"
+                  size="icon"
+                  variant="ghost"
+                  className="absolute right-1 top-1/2 -translate-y-1/2"
+                  aria-label="Send message"
+                  disabled={loading || !input.trim()}
+                >
+                  <Send className="h-4 w-4 text-[color:var(--color-muted)]" />
+                </Button>
+              </div>
+            </form>
+            <div className="flex items-center justify-between text-[11px] text-[color:var(--color-muted)]">
+              <p className="flex items-center gap-1 italic">
+                <Lightbulb className="h-3.5 w-3.5 text-[color:var(--color-muted)]" />
+                Not sure what to ask?{" "}
+                <span className="text-[color:var(--color-brand)]">
+                  See what I can do
+                </span>
               </p>
+              <span>0/2000</span>
             </div>
-          </div>
-          <div className="space-y-2">
-            <Input placeholder="Describe what you would like to do..." />
-            <p className="text-[10px] text-[color:var(--color-muted)]">
-              Not sure what to ask?{" "}
-              <span className="text-[color:var(--color-brand)]">
-                See what I can do
-              </span>
-            </p>
           </div>
         </aside>
       ) : null}

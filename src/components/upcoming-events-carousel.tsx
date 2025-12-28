@@ -82,7 +82,7 @@ export function UpcomingEventsCarousel() {
         tabIndex={0}
         role="region"
         aria-roledescription="carousel"
-        aria-label="Upcoming events"
+        aria-label={`Events carousel: Item ${activeIndex + 1} of ${total}`}
         aria-live="polite"
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
@@ -92,56 +92,72 @@ export function UpcomingEventsCarousel() {
           style={{ transform: `translateX(-${activeIndex * 100}%)` }}
           aria-describedby={carouselId}
         >
-          {events.map((event) => (
-            <div className="carouselSlide" key={event.title}>
-              <Image
-                src={event.imageSrc}
-                alt={event.title}
-                width={640}
-                height={360}
-                className="carouselImage"
-                priority={event.title === "Gartner Marketing Symposium 2026"}
-              />
-              <Badge
-                variant="outline"
-                className="carouselTag dashboard-tag text-[10px] font-semibold uppercase"
-              >
-                {event.tag}
-              </Badge>
-              <div className="carouselMeta">
-                <span>{event.title}</span>
-                <span className="carouselMetaDate">| {event.date}</span>
-              </div>
-              <p className="carouselDescription">
-                {event.description}
-              </p>
-              <div className="carouselActionCont">
-                <div className="carousel-button-ellipse">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="carousel-button h-7 rounded-md px-3 text-[12px] text-[color:var(--color-brand)]"
-                  >
-                    Register
-                  </Button>
+          {events.map((event, index) => (
+            <div
+              className="carouselSlide"
+              key={event.title}
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`Item ${index + 1} of ${total}: ${event.title}`}
+            >
+              <div className="carouselCont">
+                <Image
+                  src={event.imageSrc}
+                  alt={event.title}
+                  width={800}
+                  height={500}
+                  className="carouselImage"
+                  priority={event.title === "Gartner Marketing Symposium 2026"}
+                />
+                <span
+                  className="carouselTag mt-2 inline-flex w-fit max-w-fit items-center self-start rounded-md border border-[color:var(--color-border)] px-2 py-0.5 text-[11px] font-medium tracking-normal text-[color:var(--color-muted)]"
+                  aria-hidden="true"
+                >
+                  {event.tag}
+                </span>
+                <div>
+                  <p className="display-inline text-[14px] font-semibold text-[color:var(--color-foreground)]">
+                    {event.title}
+                  </p>
+                  <p className="display-inline text-[13px] font-normal text-[color:var(--color-muted)]">
+                    {" "}
+                    | {event.date}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="carousel-button flex items-center gap-1 text-[11px] font-semibold text-[color:var(--color-muted)] transition hover:text-[color:var(--color-brand)]"
-                    onClick={handlePrevious}
-                  >
-                    <ChevronLeft className="h-3 w-3" />
-                    Previous
+                <p className="carouselDescription singleLine text-[12px] leading-[18px] text-[color:var(--color-muted)]">
+                  {event.description}
+                </p>
+                <div className="carouselActionCont">
+                  <div className="carousel-button-ellipse">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="carousel-button h-7 rounded-md px-3 text-[12px] text-[color:var(--color-brand)]"
+                      aria-label={`Register for ${event.title}`}
+                    >
+                      Register
+                    </Button>
+                  </div>
+                  <div className="carouselNav inline-flex items-center gap-4 whitespace-nowrap">
+                    <button
+                      type="button"
+                      className="carousel-button flex items-center gap-1 whitespace-nowrap text-[13px] font-semibold text-[color:var(--color-brand)]"
+                      onClick={handlePrevious}
+                      aria-label={`Previous event: Item ${activeIndex + 1} of ${total}`}
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      className="carousel-button flex items-center gap-1 whitespace-nowrap text-[13px] font-semibold text-[color:var(--color-brand)]"
+                      onClick={handleNext}
+                      aria-label={`Next event: Item ${activeIndex + 1} of ${total}`}
+                    >
+                      Next
+                      <ChevronRight className="h-6 w-6" />
                   </button>
-                  <button
-                    type="button"
-                    className="carousel-button flex items-center gap-1 text-[11px] font-semibold text-[color:var(--color-muted)] transition hover:text-[color:var(--color-brand)]"
-                    onClick={handleNext}
-                  >
-                    Next
-                    <ChevronRight className="h-3 w-3" />
-                  </button>
+                  </div>
                 </div>
               </div>
             </div>

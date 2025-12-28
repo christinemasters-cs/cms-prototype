@@ -1,6 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
-@import "../../_vendor/marketplace-app-boilerplate/src/containers/index.css";
 
 :root {
   --background: #f6f7fb;
@@ -146,9 +145,10 @@ body {
 }
 
 .courseImage {
-  margin-bottom: 0;
-  height: 8.25rem;
-  border-radius: 6px;
+  margin-bottom: 1rem;
+  height: 10.313rem;
+  width: 100%;
+  border-radius: 4px;
 }
 
 .academic-card-title {
@@ -166,8 +166,7 @@ body {
   background: #ffffff;
   display: flex;
   align-items: flex-start;
-  height: 16.5rem;
-  width: 15.5rem;
+  width: 18.313rem;
   flex-direction: column;
 }
 
@@ -246,7 +245,7 @@ body {
   width: 100%;
   overflow: hidden;
   position: relative;
-  padding: 0.75rem;
+  padding: 0;
   border: 1px solid #dde3ee;
   border-radius: 0.5rem;
   background-color: #ffffff;
@@ -272,10 +271,18 @@ body {
 .carouselImage {
   border-radius: 6px;
   margin-bottom: 10px;
-  height: 100%;
+  height: auto;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
+  aspect-ratio: 8 / 5;
+  object-fit: contain;
+}
+
+.carouselCont {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
 }
 
 .carouselMeta {
@@ -293,11 +300,25 @@ body {
   color: var(--color-muted);
 }
 
+.carouselTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.carouselDate {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
 .carouselActionCont {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 6px;
+  margin-top: 10px;
+  flex-wrap: nowrap;
+  gap: 12px;
 }
 
 .carouselDescription {
@@ -324,7 +345,9 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   text-align: center;
 }
 

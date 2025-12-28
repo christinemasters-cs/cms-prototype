@@ -3,6 +3,7 @@ import {
   Bell,
   BookOpen,
   Code2,
+  Clock,
   GraduationCap,
   HelpCircle,
   ImagePlus,
@@ -199,16 +200,16 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <PolarisPanel />
             <Button variant="ghost" size="icon" aria-label="Search" className="h-8 w-8">
-              <Search className="h-4 w-4" />
+              <Search className="h-5 w-5" />
             </Button>
             <Button variant="ghost" size="icon" aria-label="Notifications" className="h-8 w-8">
-              <Bell className="h-4 w-4" />
+              <Bell className="h-5 w-5" />
             </Button>
             <Button variant="ghost" size="icon" aria-label="Help" className="h-8 w-8">
-              <HelpCircle className="h-4 w-4" />
+              <HelpCircle className="h-5 w-5" />
             </Button>
             <Button variant="ghost" size="icon" aria-label="Apps" className="h-8 w-8">
-              <LayoutGrid className="h-4 w-4" />
+              <LayoutGrid className="h-5 w-5" />
             </Button>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] text-[11px] font-semibold">
               CM
@@ -280,7 +281,7 @@ export default function Home() {
                 See all
               </Button>
             </div>
-            <div className="grid justify-start gap-4 [grid-template-columns:repeat(auto-fill,minmax(15.5rem,15.5rem))]">
+            <div className="grid justify-start gap-4 [grid-template-columns:repeat(auto-fill,minmax(18.313rem,18.313rem))]">
               {trainingCards.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -294,7 +295,7 @@ export default function Home() {
                         alt={`${item.title} thumbnail`}
                         fill
                         sizes="(max-width: 1024px) 100vw, 320px"
-                        className="object-cover"
+                        className="object-contain"
                         priority={item.title === "Omni-channel Personalization"}
                       />
                       <div className="absolute inset-0 bg-gradient-to-tr from-black/10 via-transparent to-white/10" />
@@ -302,19 +303,22 @@ export default function Home() {
                         <Icon className="h-4 w-4" />
                       </div>
                     </div>
-                    <CardHeader className="gap-2">
+                    <div className="flex items-center gap-2 px-4 pt-3">
                       <Badge
                         variant="outline"
                         className="dashboard-tag text-[10px] font-semibold uppercase"
                       >
                         {item.label}
                       </Badge>
+                      <span className="flex items-center gap-1 text-[11px] text-[color:var(--text-secondary-text-purple-gray)]">
+                        <Clock className="h-3 w-3" />
+                        {item.duration}
+                      </span>
+                    </div>
+                    <CardHeader className="gap-2">
                       <CardTitle className="academic-card-title text-[14px] font-semibold">
                         {item.title}
                       </CardTitle>
-                      <CardDescription className="text-[12px] text-[color:var(--text-secondary-text-purple-gray)]">
-                        {item.duration}
-                      </CardDescription>
                       <CardDescription className="academic-card-description">
                         {item.description}
                       </CardDescription>
