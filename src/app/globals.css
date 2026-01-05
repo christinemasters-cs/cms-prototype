@@ -10,6 +10,8 @@
   --muted: #6e6b86;
   --brand: #6c5ce7;
   --brand-soft: #efeaff;
+  --polaris-width: 540px;
+  --polaris-top: 56px;
   --text-secondary-text-tarmac-grey-n-700: #475161;
   --text-secondary-text-purple-gray: #6e6b86;
   --text-primary-text-gray-900-body-black: #212121;
@@ -50,6 +52,30 @@ body {
 
 .dashboard-page {
   font-size: 14px;
+}
+
+.dashboard-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.polaris-rail {
+  display: none;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  align-self: start;
+}
+
+@media (min-width: 1024px) {
+  :root[data-polaris-docked="true"] .dashboard-shell {
+    grid-template-columns: minmax(0, 1fr) var(--polaris-width);
+  }
+
+  :root[data-polaris-docked="true"] .polaris-rail {
+    display: block;
+  }
 }
 
 .line-clamp-1 {

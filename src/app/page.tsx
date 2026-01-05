@@ -186,256 +186,274 @@ const pulseItems = [
 
 export default function Home() {
   return (
-    <div className="dashboard-page min-h-screen bg-[color:var(--color-background)]">
-      <header className="sticky top-0 z-20 border-b border-[color:var(--color-border)] bg-[color:var(--color-surface)]/90 backdrop-blur">
-        <div className="mx-auto flex w-full items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand)]">
-              <span className="text-sm font-semibold">CS</span>
+    <div className="dashboard-shell">
+      <div className="dashboard-page min-h-screen bg-[color:var(--color-background)]">
+        <header className="sticky top-0 z-20 border-b border-[color:var(--color-border)] bg-[color:var(--color-surface)]/90 backdrop-blur">
+          <div className="mx-auto flex w-full items-center justify-between px-6 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand)]">
+                <span className="text-sm font-semibold">CS</span>
+              </div>
+              <span className="text-sm font-semibold tracking-tight">
+                Contentstack
+              </span>
             </div>
-            <span className="text-sm font-semibold tracking-tight">
-              Contentstack
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <PolarisPanel />
-            <Button variant="ghost" size="icon" aria-label="Search" className="h-8 w-8">
-              <Search className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" aria-label="Notifications" className="h-8 w-8">
-              <Bell className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" aria-label="Help" className="h-8 w-8">
-              <HelpCircle className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" aria-label="Apps" className="h-8 w-8">
-              <LayoutGrid className="h-5 w-5" />
-            </Button>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] text-[11px] font-semibold">
-              CM
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto grid w-full gap-10 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_29.5%] lg:grid-rows-[auto_1fr]">
-        <div className="space-y-1 lg:col-start-1 lg:row-start-1">
-          <h1 className="text-[20px] font-semibold leading-[28px] tracking-tight text-[color:var(--text-primary-text-gray-900-body-black)]">
-            Welcome, Christine
-          </h1>
-          <p className="text-[12px] font-medium text-[color:var(--text-secondary-text-purple-gray)]">
-            Organization Name: BambooHR Trial
-          </p>
-        </div>
-
-        <section className="space-y-8 lg:col-start-1 lg:row-start-2">
-          <section className="space-y-3">
-            <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
-              Explore Apps
-            </h2>
-            <div className="grid justify-start gap-3 [grid-template-columns:repeat(auto-fill,minmax(190px,190px))]">
-              {appCards.map((app) => {
-                const Icon = app.icon;
-                const isDisabled = Boolean(app.disabled);
-                return (
-                  <Card
-                    key={app.title}
-                    className={`widget-container w-[190px] shadow-sm transition ${
-                      isDisabled
-                        ? "disabled"
-                        : "hover:border-[color:var(--color-brand)] hover:shadow-md"
-                    }`}
-                    role="button"
-                    tabIndex={0}
-                    aria-disabled={isDisabled}
-                  >
-                    <CardHeader className="product-details-container gap-2">
-                      <div className="product-icon-container">
-                        <div className="product-icon-wrapper text-[color:var(--color-brand)]">
-                          <Icon className="h-5 w-5" />
-                        </div>
-                      </div>
-                      <CardTitle className="academic-card-title text-[14px] font-semibold text-[color:var(--text-primary-text-gray-900-body-black)]">
-                        {app.title}
-                      </CardTitle>
-                      <CardDescription className="product-description">
-                        {app.description}
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
-                Level Up with Role-Based Training & Certifications
-              </h2>
+            <div className="flex items-center gap-2">
+              <PolarisPanel pageContext="Dashboard" />
               <Button
                 variant="ghost"
-                size="sm"
-                className="text-[12px] font-semibold text-[color:var(--color-brand)]"
+                size="icon"
+                aria-label="Search"
+                className="h-8 w-8"
               >
-                See all
+                <Search className="h-5 w-5" />
               </Button>
-            </div>
-            <div className="grid justify-start gap-4 [grid-template-columns:repeat(auto-fill,minmax(18.313rem,18.313rem))]">
-              {trainingCards.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Card
-                    key={item.title}
-                    className="academic-card-container clickable-card overflow-hidden shadow-sm transition hover:border-[color:var(--color-brand)] hover:shadow-md"
-                  >
-                    <div className="courseImage relative w-full overflow-hidden">
-                      <Image
-                        src={item.imageSrc}
-                        alt={`${item.title} thumbnail`}
-                        fill
-                        sizes="(max-width: 1024px) 100vw, 320px"
-                        className="object-contain"
-                        priority={item.title === "Omni-channel Personalization"}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-tr from-black/10 via-transparent to-white/10" />
-                      <div className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[color:var(--color-brand)] shadow">
-                        <Icon className="h-4 w-4" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 px-4 pt-3">
-                      <Badge
-                        variant="outline"
-                        className="dashboard-tag text-[10px] font-semibold uppercase"
-                      >
-                        {item.label}
-                      </Badge>
-                      <span className="flex items-center gap-1 text-[11px] text-[color:var(--text-secondary-text-purple-gray)]">
-                        <Clock className="h-3 w-3" />
-                        {item.duration}
-                      </span>
-                    </div>
-                    <CardHeader className="gap-2">
-                      <CardTitle className="academic-card-title text-[14px] font-semibold">
-                        {item.title}
-                      </CardTitle>
-                      <CardDescription className="academic-card-description">
-                        {item.description}
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="grid gap-6 xl:grid-cols-2">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
-                  Product Changelog
-                </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-[12px] font-semibold text-[color:var(--color-brand)]"
-                >
-                  See all
-                </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Notifications"
+                className="h-8 w-8"
+              >
+                <Bell className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label="Help" className="h-8 w-8">
+                <HelpCircle className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label="Apps" className="h-8 w-8">
+                <LayoutGrid className="h-5 w-5" />
+              </Button>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] text-[11px] font-semibold">
+                CM
               </div>
-              <Card className="widget-container shadow-sm">
-                <CardContent className="divide-y divide-[color:var(--color-border)]">
-                  {changelogItems.map((item) => (
-                    <button
-                      key={item.title}
-                      type="button"
-                      className="changeLogCont px-2 py-3 text-left transition hover:bg-[color:var(--color-surface-muted)] active:bg-[color:var(--color-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand)] focus-visible:ring-offset-2"
-                    >
-                      <span className="changeLogDesc">
-                        <span className="changeLogTitle text-[15px] font-semibold">
-                          {item.title}
-                        </span>
-                        <span className="changeLogDate">{item.date}</span>
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className="changeLogTag dashboard-tag text-[10px] font-semibold"
-                      >
-                        {item.tag}
-                      </Badge>
-                    </button>
-                  ))}
-                </CardContent>
-              </Card>
             </div>
+          </div>
+        </header>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
-                  Contentstack Pulse
-                </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-[12px] font-semibold text-[color:var(--color-brand)]"
-                >
-                  See all
-                </Button>
-              </div>
-              <Card className="widget-container shadow-sm">
-                <CardContent className="divide-y divide-[color:var(--color-border)]">
-                  {pulseItems.map((item) => (
-                    <button
-                      key={item.title}
-                      type="button"
-                      className="changeLogCont px-2 py-3 text-left transition hover:bg-[color:var(--color-surface-muted)] active:bg-[color:var(--color-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand)] focus-visible:ring-offset-2"
-                    >
-                      <span className="changeLogDesc">
-                        <span className="changeLogTitle text-[15px] font-semibold">
-                          {item.title}
-                        </span>
-                        <span className="changeLogDate">{item.date}</span>
-                      </span>
-                    </button>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          </section>
-        </section>
-
-        <aside className="hidden w-full flex-col gap-6 lg:col-start-2 lg:row-start-2 lg:flex">
-          <div className="space-y-2">
-            <h3 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
-              Quick Links
-            </h3>
-            <Card className="widget-container shadow-sm">
-              <CardContent className="divide-y divide-[color:var(--color-border)] px-2 py-1">
-                {quickLinks.map((link) => {
-                  const Icon = link.icon;
-                  return (
-                    <button
-                      key={link.label}
-                      className="flex w-full items-center gap-3 px-2 py-3 text-sm text-[color:var(--color-foreground)] transition hover:bg-[color:var(--color-surface-muted)] active:bg-[color:var(--color-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand)] focus-visible:ring-offset-2"
-                      type="button"
-                    >
-                      <span className="flex h-6 w-6 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] text-[color:var(--color-muted)]">
-                        <Icon className="h-3.5 w-3.5" />
-                      </span>
-                      <span className="quickLink text-[12px] font-semibold">
-                        {link.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </CardContent>
-            </Card>
+        <main className="dashboard-main mx-auto grid w-full gap-10 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_29.5%] lg:grid-rows-[auto_1fr]">
+          <div className="space-y-1 lg:col-start-1 lg:row-start-1">
+            <h1 className="text-[20px] font-semibold leading-[28px] tracking-tight text-[color:var(--text-primary-text-gray-900-body-black)]">
+              Welcome, Christine
+            </h1>
+            <p className="text-[12px] font-medium text-[color:var(--text-secondary-text-purple-gray)]">
+              Organization Name: BambooHR Trial
+            </p>
           </div>
 
-          <UpcomingEventsCarousel />
-        </aside>
-      </main>
+          <section className="space-y-8 lg:col-start-1 lg:row-start-2">
+            <section className="space-y-3">
+              <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+                Explore Apps
+              </h2>
+              <div className="grid justify-start gap-3 [grid-template-columns:repeat(auto-fill,minmax(190px,190px))]">
+                {appCards.map((app) => {
+                  const Icon = app.icon;
+                  const isDisabled = Boolean(app.disabled);
+                  return (
+                    <Card
+                      key={app.title}
+                      className={`widget-container w-[190px] shadow-sm transition ${
+                        isDisabled
+                          ? "disabled"
+                          : "hover:border-[color:var(--color-brand)] hover:shadow-md"
+                      }`}
+                      role="button"
+                      tabIndex={0}
+                      aria-disabled={isDisabled}
+                    >
+                      <CardHeader className="product-details-container gap-2">
+                        <div className="product-icon-container">
+                          <div className="product-icon-wrapper text-[color:var(--color-brand)]">
+                            <Icon className="h-5 w-5" />
+                          </div>
+                        </div>
+                        <CardTitle className="academic-card-title text-[14px] font-semibold text-[color:var(--text-primary-text-gray-900-body-black)]">
+                          {app.title}
+                        </CardTitle>
+                        <CardDescription className="product-description">
+                          {app.description}
+                        </CardDescription>
+                      </CardHeader>
+                    </Card>
+                  );
+                })}
+              </div>
+            </section>
 
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+                  Level Up with Role-Based Training & Certifications
+                </h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[12px] font-semibold text-[color:var(--color-brand)]"
+                >
+                  See all
+                </Button>
+              </div>
+              <div className="grid justify-start gap-4 [grid-template-columns:repeat(auto-fill,minmax(18.313rem,18.313rem))]">
+                {trainingCards.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Card
+                      key={item.title}
+                      className="academic-card-container clickable-card overflow-hidden shadow-sm transition hover:border-[color:var(--color-brand)] hover:shadow-md"
+                    >
+                      <div className="courseImage relative w-full overflow-hidden">
+                        <Image
+                          src={item.imageSrc}
+                          alt={`${item.title} thumbnail`}
+                          fill
+                          sizes="(max-width: 1024px) 100vw, 320px"
+                          className="object-contain"
+                          priority={item.title === "Omni-channel Personalization"}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-tr from-black/10 via-transparent to-white/10" />
+                        <div className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[color:var(--color-brand)] shadow">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 px-4 pt-3">
+                        <Badge
+                          variant="outline"
+                          className="dashboard-tag text-[10px] font-semibold uppercase"
+                        >
+                          {item.label}
+                        </Badge>
+                        <span className="flex items-center gap-1 text-[11px] text-[color:var(--text-secondary-text-purple-gray)]">
+                          <Clock className="h-3 w-3" />
+                          {item.duration}
+                        </span>
+                      </div>
+                      <CardHeader className="gap-2">
+                        <CardTitle className="academic-card-title text-[14px] font-semibold">
+                          {item.title}
+                        </CardTitle>
+                        <CardDescription className="academic-card-description">
+                          {item.description}
+                        </CardDescription>
+                      </CardHeader>
+                    </Card>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-2">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+                    Product Changelog
+                  </h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[12px] font-semibold text-[color:var(--color-brand)]"
+                  >
+                    See all
+                  </Button>
+                </div>
+                <Card className="widget-container shadow-sm">
+                  <CardContent className="divide-y divide-[color:var(--color-border)]">
+                    {changelogItems.map((item) => (
+                      <button
+                        key={item.title}
+                        type="button"
+                        className="changeLogCont px-2 py-3 text-left transition hover:bg-[color:var(--color-surface-muted)] active:bg-[color:var(--color-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand)] focus-visible:ring-offset-2"
+                      >
+                        <span className="changeLogDesc">
+                          <span className="changeLogTitle text-[15px] font-semibold">
+                            {item.title}
+                          </span>
+                          <span className="changeLogDate">{item.date}</span>
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className="changeLogTag dashboard-tag text-[10px] font-semibold"
+                        >
+                          {item.tag}
+                        </Badge>
+                      </button>
+                    ))}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+                    Contentstack Pulse
+                  </h2>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[12px] font-semibold text-[color:var(--color-brand)]"
+                  >
+                    See all
+                  </Button>
+                </div>
+                <Card className="widget-container shadow-sm">
+                  <CardContent className="divide-y divide-[color:var(--color-border)]">
+                    {pulseItems.map((item) => (
+                      <button
+                        key={item.title}
+                        type="button"
+                        className="changeLogCont px-2 py-3 text-left transition hover:bg-[color:var(--color-surface-muted)] active:bg-[color:var(--color-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand)] focus-visible:ring-offset-2"
+                      >
+                        <span className="changeLogDesc">
+                          <span className="changeLogTitle text-[15px] font-semibold">
+                            {item.title}
+                          </span>
+                          <span className="changeLogDate">{item.date}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+          </section>
+
+          <aside className="dashboard-rail hidden w-full flex-col gap-6 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:flex">
+            <div className="dashboard-rail-content space-y-6">
+              <div className="space-y-2">
+                <h3 className="text-[16px] font-semibold text-[color:var(--text-secondary-text-tarmac-grey-n-700)]">
+                  Quick Links
+                </h3>
+                <Card className="widget-container shadow-sm">
+                  <CardContent className="divide-y divide-[color:var(--color-border)] px-2 py-1">
+                    {quickLinks.map((link) => {
+                      const Icon = link.icon;
+                      return (
+                        <button
+                          key={link.label}
+                          className="flex w-full items-center gap-3 px-2 py-3 text-sm text-[color:var(--color-foreground)] transition hover:bg-[color:var(--color-surface-muted)] active:bg-[color:var(--color-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand)] focus-visible:ring-offset-2"
+                          type="button"
+                        >
+                          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface)] text-[color:var(--color-muted)]">
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="quickLink text-[12px] font-semibold">
+                            {link.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <UpcomingEventsCarousel />
+            </div>
+          </aside>
+        </main>
+      </div>
+      <aside
+        id="polaris-dock"
+        className="polaris-rail"
+        aria-label="Polaris dock"
+      />
     </div>
   );
 }
