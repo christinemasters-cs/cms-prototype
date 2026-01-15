@@ -31,6 +31,7 @@ import {
 import Image from "next/image";
 import { PolarisPanel } from "@/components/polaris-panel";
 import { UpcomingEventsCarousel } from "@/components/upcoming-events-carousel";
+import { AppSwitcher } from "@/components/app-switcher";
 
 const appCards = [
   {
@@ -186,49 +187,47 @@ const pulseItems = [
 
 export default function Home() {
   return (
-    <div className="dashboard-shell">
-      <div className="dashboard-page min-h-screen bg-[color:var(--color-background)]">
-        <header className="sticky top-0 z-20 border-b border-[color:var(--color-border)] bg-[color:var(--color-surface)]/90 backdrop-blur">
-          <div className="mx-auto flex w-full items-center justify-between px-6 py-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand)]">
-                <span className="text-sm font-semibold">CS</span>
-              </div>
-              <span className="text-sm font-semibold tracking-tight">
-                Contentstack
-              </span>
+    <div className="dashboard-page min-h-screen bg-[color:var(--color-background)]">
+      <header className="sticky top-0 z-20 border-b border-[color:var(--color-border)] bg-[color:var(--color-surface)]/90 backdrop-blur">
+        <div className="mx-auto flex w-full items-center justify-between px-6 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand)]">
+              <span className="text-sm font-semibold">CS</span>
             </div>
-            <div className="flex items-center gap-2">
-              <PolarisPanel pageContext="Dashboard" />
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Search"
-                className="h-8 w-8"
-              >
-                <Search className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Notifications"
-                className="h-8 w-8"
-              >
-                <Bell className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" aria-label="Help" className="h-8 w-8">
-                <HelpCircle className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" aria-label="Apps" className="h-8 w-8">
-                <LayoutGrid className="h-5 w-5" />
-              </Button>
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] text-[11px] font-semibold">
-                CM
-              </div>
+            <span className="text-sm font-semibold tracking-tight">
+              Contentstack
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <PolarisPanel pageContext="Dashboard" />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Search"
+              className="h-8 w-8"
+            >
+              <Search className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Notifications"
+              className="h-8 w-8"
+            >
+              <Bell className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label="Help" className="h-8 w-8">
+              <HelpCircle className="h-5 w-5" />
+            </Button>
+            <AppSwitcher />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] text-[11px] font-semibold">
+              CM
             </div>
           </div>
-        </header>
+        </div>
+      </header>
 
+      <div className="dashboard-shell">
         <main className="dashboard-main mx-auto grid w-full gap-10 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_29.5%] lg:grid-rows-[auto_1fr]">
           <div className="space-y-1 lg:col-start-1 lg:row-start-1">
             <h1 className="text-[20px] font-semibold leading-[28px] tracking-tight text-[color:var(--text-primary-text-gray-900-body-black)]">
@@ -448,12 +447,12 @@ export default function Home() {
             </div>
           </aside>
         </main>
+        <aside
+          id="polaris-dock"
+          className="polaris-rail"
+          aria-label="Polaris dock"
+        />
       </div>
-      <aside
-        id="polaris-dock"
-        className="polaris-rail"
-        aria-label="Polaris dock"
-      />
     </div>
   );
 }

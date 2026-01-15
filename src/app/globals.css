@@ -12,6 +12,7 @@
   --brand-soft: #efeaff;
   --polaris-width: 540px;
   --polaris-top: 56px;
+  --polaris-bottom: 0px;
   --text-secondary-text-tarmac-grey-n-700: #475161;
   --text-secondary-text-purple-gray: #6e6b86;
   --text-primary-text-gray-900-body-black: #212121;
@@ -57,15 +58,99 @@ body {
 .dashboard-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: calc(100vh - var(--polaris-top) - var(--polaris-bottom));
 }
 
 .polaris-rail {
   display: none;
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 100%;
   align-self: start;
+}
+
+.polaris-overlay {
+  position: fixed;
+  right: 0;
+  top: var(--polaris-top);
+  height: calc(100vh - var(--polaris-top) - var(--polaris-bottom));
+  width: var(--polaris-width);
+  animation: polaris-slide-in 180ms ease-out;
+  transform-origin: right center;
+}
+
+.polaris-expanded {
+  width: 75vw;
+  animation: polaris-focus-expand 220ms ease-out;
+}
+
+.polaris-docked-panel {
+  animation: polaris-dock-in 200ms ease-out;
+  transform-origin: right center;
+}
+
+.polaris-test-flow {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(16, 185, 129, 0.9) 0,
+    rgba(16, 185, 129, 0.9) 8px,
+    transparent 8px,
+    transparent 16px
+  );
+  background-size: 160% 100%;
+  animation: polaris-test-flow 0.9s linear infinite;
+}
+
+@keyframes polaris-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes polaris-focus-expand {
+  from {
+    transform: translateX(0) scaleX(0.7);
+  }
+  to {
+    transform: translateX(0) scaleX(1);
+  }
+}
+
+@keyframes polaris-dock-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes polaris-test-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 160% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .polaris-overlay,
+  .polaris-expanded,
+  .polaris-docked-panel {
+    animation: none;
+  }
+}
+
+:root[data-polaris-expanded="true"] {
+  --polaris-width: 75vw;
 }
 
 @media (min-width: 1024px) {

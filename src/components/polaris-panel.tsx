@@ -21,6 +21,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PolarisAgentSetup } from "@/components/polaris-agent-setup";
 
 export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   const pathname = usePathname();
@@ -105,7 +106,12 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const shouldDock = open && isPinned && !isExpanded;
+  const shouldDock = open && isPinned;
+  const [panelMode, setPanelMode] = useState<"chat" | "agent-setup">("chat");
+  const [panelPayload, setPanelPayload] = useState<{
+    projectId?: string;
+    description?: string;
+  }>({});
 
   useEffect(() => {
     if (!open) {
@@ -152,6 +158,17 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   }, [shouldDock]);
 
   useEffect(() => {
+    const root = document.documentElement;
+    if (open && isExpanded) {
+      root.dataset.polarisExpanded = "true";
+      return () => {
+        delete root.dataset.polarisExpanded;
+      };
+    }
+    delete root.dataset.polarisExpanded;
+  }, [open, isExpanded]);
+
+  useEffect(() => {
     if (!menuOpen) {
       return;
     }
@@ -173,6 +190,37 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
     }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, liveStatus, livePlan, liveTools, loading, autoScrollEnabled]);
+
+  useEffect(() => {
+    const handleOpen = () => setOpen(true);
+    const handleClose = () => setOpen(false);
+    const handleExpand = () => setIsExpanded(true);
+    const handleCollapse = () => setIsExpanded(false);
+    const handleMode = (
+      event: Event & {
+        detail?: { mode?: "chat" | "agent-setup"; payload?: typeof panelPayload };
+      }
+    ) => {
+      if (!event.detail?.mode) {
+        return;
+      }
+      setPanelMode(event.detail.mode);
+      setPanelPayload(event.detail.payload ?? {});
+    };
+
+    window.addEventListener("polaris:open", handleOpen);
+    window.addEventListener("polaris:close", handleClose);
+    window.addEventListener("polaris:expand", handleExpand);
+    window.addEventListener("polaris:collapse", handleCollapse);
+    window.addEventListener("polaris:mode", handleMode as EventListener);
+    return () => {
+      window.removeEventListener("polaris:open", handleOpen);
+      window.removeEventListener("polaris:close", handleClose);
+      window.removeEventListener("polaris:expand", handleExpand);
+      window.removeEventListener("polaris:collapse", handleCollapse);
+      window.removeEventListener("polaris:mode", handleMode as EventListener);
+    };
+  }, []);
 
   const updateMessage = (
     id: string,
@@ -1253,12 +1301,15 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
                 id={panelId}
                 ref={panelRef}
                 className={`${
-                  isExpanded
-                    ? "fixed left-1/2 top-16 z-40 h-[calc(100vh-96px)] w-[min(920px,92vw)] -translate-x-1/2"
-                    : isPinned
-                    ? "relative h-full w-full"
-                    : "fixed right-4 top-10 z-30 h-[calc(100vh-56px)] w-[540px]"
+                  isPinned && dockElement
+                    ? "polaris-docked-panel h-full w-full"
+                    : isExpanded
+                    ? "polaris-overlay polaris-expanded z-40"
+                    : "polaris-overlay z-30"
                 } flex flex-col rounded-md border border-transparent bg-[color:var(--color-surface)] shadow-[0_0_1.5rem_rgba(0,0,0,0.17)]`}
+                data-expanded={isExpanded ? "true" : "false"}
+                data-open={open ? "true" : "false"}
+                data-mode={panelMode}
                 role="dialog"
                 aria-label="Polaris assistant"
                 aria-modal="false"
@@ -1346,317 +1397,377 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
               </Button>
             </div>
           </div>
-          <div className="flex flex-1 flex-col overflow-hidden px-8 py-8">
-            {messages.length === 0 ? (
-              <div className="flex flex-1 flex-col items-center gap-3 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand)] shadow-[0_8px_22px_rgba(109,80,255,0.25)]">
-                  <PolarisIcon className="h-7 w-7" />
-                </div>
-                <h3 className="text-[20px] font-semibold text-[color:var(--color-foreground)]">
-                  {initialWelcomeTitle}
-                </h3>
-                <p className="max-w-[320px] text-center text-[0.875rem] leading-[1.5] text-[#6b7280]">
-                  {initialWelcomeSubhead}
-                </p>
-
-                <div className="mt-2 grid w-full max-w-[420px] grid-cols-2 gap-3">
-                  {initialPromoCards.slice(0, 2).map((card) => {
-                    const Icon = card.icon;
-                    return (
-                      <button
-                        key={card.title}
-                        type="button"
-                        onClick={() => void handleSubmit(card.title)}
-                        className="flex h-[88px] flex-col items-center justify-center gap-1 rounded-2xl bg-[color:var(--color-brand)] text-white shadow-[0_10px_18px_rgba(79,70,229,0.25)] transition hover:brightness-110"
-                      >
-                        <Icon className="h-6 w-6" />
-                        <div className="text-sm font-semibold">{card.title}</div>
-                        <div className="text-[11px] text-white/80">
-                          {card.description}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-4 w-full max-w-[420px] space-y-2 text-left">
-                  {initialActivities.map((activity) => {
-                    const Icon = activity.icon;
-                    return (
-                      <button
-                        key={activity.label}
-                        type="button"
-                        onClick={() => void handleSubmit(activity.label)}
-                        className="flex w-full items-center justify-between rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-sm text-[color:var(--color-foreground)] shadow-sm transition hover:border-[color:var(--color-brand)]"
-                      >
-                        <span className="flex items-center gap-2">
-                          <Icon className="h-4 w-4 text-[color:var(--color-brand)]" />
-                          {activity.label}
-                        </span>
-                        <ChevronRight className="h-4 w-4 text-[color:var(--color-muted)]" />
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-4 flex w-full max-w-[420px] flex-wrap justify-center gap-2">
-                  {initialChips.map((chip) => (
-                    <Button
-                      key={chip}
-                      variant="outline"
-                      size="sm"
-                      className="h-auto rounded-full px-3 py-1 text-[11px] font-medium"
-                      onClick={() => void handleSubmit(chip)}
+          {panelMode === "agent-setup" ? (
+            <PolarisAgentSetup
+              projectId={panelPayload.projectId}
+              description={panelPayload.description}
+              expanded={isExpanded}
+              onDone={() => {
+                setPanelMode("chat");
+                setPanelPayload({});
+                setIsExpanded(false);
+              }}
+            />
+          ) : (
+            <>
+              <div
+                className={`flex flex-1 flex-col overflow-hidden ${
+                  isExpanded ? "px-10 py-10" : "px-8 py-8"
+                }`}
+              >
+                {messages.length === 0 ? (
+                  <div
+                    className={`flex flex-1 flex-col items-center text-center ${
+                      isExpanded ? "gap-5" : "gap-3"
+                    }`}
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--color-brand-soft)] text-[color:var(--color-brand)] shadow-[0_8px_22px_rgba(109,80,255,0.25)]">
+                      <PolarisIcon className="h-7 w-7" />
+                    </div>
+                    <h3
+                      className={`font-semibold text-[color:var(--color-foreground)] ${
+                        isExpanded ? "text-[24px]" : "text-[20px]"
+                      }`}
                     >
-                      {chip}
-                    </Button>
-                  ))}
-                </div>
+                      {initialWelcomeTitle}
+                    </h3>
+                    <p
+                      className={`text-center leading-[1.5] text-[#6b7280] ${
+                        isExpanded ? "max-w-[520px] text-[15px]" : "max-w-[320px] text-[0.875rem]"
+                      }`}
+                    >
+                      {initialWelcomeSubhead}
+                    </p>
 
-              </div>
-            ) : (
-              <div className="flex flex-1 flex-col gap-3 overflow-hidden">
-                <div
-                  ref={scrollContainerRef}
-                  className="flex flex-1 flex-col gap-4 overflow-y-auto pr-2"
-                  onScroll={() => {
-                    const container = scrollContainerRef.current;
-                    if (!container) {
-                      return;
-                    }
-                    const threshold = 40;
-                    const atBottom =
-                      container.scrollHeight -
-                        (container.scrollTop + container.clientHeight) <=
-                      threshold;
-                    setAutoScrollEnabled(atBottom);
-                  }}
-                >
-                  {messages.map((message) => {
-                    const isHidden =
-                      message.hidden && message.content.trim().length < 120;
-                    if (isHidden) {
-                      return null;
-                    }
-                    return (
-                      <div
-                        key={message.id}
-                        className={`rounded-lg border px-4 py-3 text-sm ${
-                          message.role === "user"
-                            ? "ml-auto max-w-[85%] border-[color:var(--color-brand)] bg-[color:var(--color-brand-soft)] text-[color:var(--color-foreground)]"
-                            : "mr-auto max-w-[90%] border-[color:var(--color-border)] bg-white text-[color:var(--color-foreground)]"
-                        }`}
-                      >
-                      {message.table && Array.isArray(message.table.rows) ? (
-                        <div className="space-y-3">
-                          <div className="text-[13px] font-semibold text-[color:var(--color-foreground)]">
-                            {message.table.title ?? "Entries"}
-                          </div>
-                          <div className="overflow-hidden rounded-lg border border-[color:var(--color-border)]">
-                            <table className="w-full text-left text-[12px]">
-                              <thead className="bg-[color:var(--color-surface-muted)] text-[color:var(--color-muted)]">
-                                <tr>
-                                  {(message.table.columns ?? []).map((column) => (
-                                    <th
-                                      key={column}
-                                      className="px-3 py-2 font-semibold"
-                                    >
-                                      {column}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {message.table.type === "content_types"
-                                  ? message.table.rows.map((row) => (
-                                      <tr
-                                        key={row.id}
-                                        className="border-t border-[color:var(--color-border)]"
-                                      >
-                                        <td className="px-3 py-2 font-semibold text-[color:var(--color-foreground)]">
-                                          {row.name ?? "Untitled"}
-                                        </td>
-                                        <td className="px-3 py-2 text-[color:var(--color-muted)]">
-                                          {row.uid && stackUid ? (
-                                            <a
-                                              className="text-[color:var(--color-brand)] hover:underline"
-                                              href={`${appBaseUrl}/#!/stack/${stackUid}/content-type/${row.uid}/content-type-builder?branch=${encodeURIComponent(
-                                                branch
-                                              )}`}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                            >
-                                              Edit
-                                            </a>
-                                          ) : (
-                                            <span className="text-[color:var(--color-muted)]">
-                                              Edit
-                                            </span>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    ))
-                                  : message.table.rows.map((row) => (
-                                      <tr
-                                        key={row.id}
-                                        className="border-t border-[color:var(--color-border)]"
-                                      >
-                                        <td className="px-3 py-2">
-                                          <span className="font-semibold text-[color:var(--color-foreground)]">
-                                            {row.title}
-                                          </span>
-                                        </td>
-                                        <td className="px-3 py-2 text-[color:var(--color-muted)]">
-                                          {formatDate(row.updatedAt)}
-                                        </td>
-                                        <td className="px-3 py-2 text-[color:var(--color-muted)]">
-                                          {row.author ?? "—"}
-                                        </td>
-                                        <td className="px-3 py-2 text-[color:var(--color-muted)]">
-                                          <div className="flex flex-wrap gap-2">
-                                            {(() => {
-                                              const editUrl = buildEditUrl(
-                                                row.entryUid,
-                                                row.contentTypeUid
-                                              );
-                                              return editUrl ? (
-                                                <a
-                                                  className="text-[color:var(--color-brand)] hover:underline"
-                                                  href={editUrl}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                >
-                                                  Edit
-                                                </a>
-                                              ) : (
-                                                <span className="text-[color:var(--color-muted)]">
-                                                  Edit
-                                                </span>
-                                              );
-                                            })()}
-                                            {(() => {
-                                              const builderUrl = buildVisualBuilderUrl(
-                                                row.entryUid,
-                                                row.contentTypeUid
-                                              );
-                                              return builderUrl ? (
-                                                <a
-                                                  className="text-[color:var(--color-brand)] hover:underline"
-                                                  href={builderUrl}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                >
-                                                  Visual Builder
-                                                </a>
-                                              ) : (
-                                                <span className="text-[color:var(--color-muted)]">
-                                                  Visual Builder
-                                                </span>
-                                              );
-                                            })()}
-                                            {(() => {
-                                              const liveUrl = buildLiveUrl(row.urlPath);
-                                              return liveUrl ? (
-                                                <a
-                                                  className="text-[color:var(--color-brand)] hover:underline"
-                                                  href={liveUrl}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                >
-                                                  View live
-                                                </a>
-                                              ) : (
-                                                <span className="text-[color:var(--color-muted)]">
-                                                  View live
-                                                </span>
-                                              );
-                                            })()}
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      ) : (
-                          <p
-                            className={`whitespace-pre-wrap ${
-                              message.kind === "thinking"
-                                ? "text-[12px] text-[color:var(--color-muted)]"
-                                : ""
+                    <div
+                      className={`mt-2 grid w-full ${
+                        isExpanded
+                          ? "max-w-[640px] grid-cols-2 gap-4"
+                          : "max-w-[420px] grid-cols-2 gap-3"
+                      }`}
+                    >
+                      {initialPromoCards.slice(0, 2).map((card) => {
+                        const Icon = card.icon;
+                        return (
+                          <button
+                            key={card.title}
+                            type="button"
+                            onClick={() => void handleSubmit(card.title)}
+                            className={`flex flex-col items-center justify-center rounded-2xl bg-[color:var(--color-brand)] text-white shadow-[0_10px_18px_rgba(79,70,229,0.25)] transition hover:brightness-110 ${
+                              isExpanded ? "h-[108px] gap-2" : "h-[88px] gap-1"
                             }`}
                           >
-                            {message.content}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {!loading && showSuggestions ? (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {suggestedPrompts.map((prompt) => (
+                            <Icon className="h-6 w-6" />
+                            <div
+                              className={`font-semibold ${
+                                isExpanded ? "text-[15px]" : "text-sm"
+                              }`}
+                            >
+                              {card.title}
+                            </div>
+                            <div
+                              className={`text-white/80 ${
+                                isExpanded ? "text-[12px]" : "text-[11px]"
+                              }`}
+                            >
+                              {card.description}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div
+                      className={`mt-4 w-full text-left ${
+                        isExpanded
+                          ? "max-w-[560px] space-y-3"
+                          : "max-w-[420px] space-y-2"
+                      }`}
+                    >
+                      {initialActivities.map((activity) => {
+                        const Icon = activity.icon;
+                        return (
+                          <button
+                            key={activity.label}
+                            type="button"
+                            onClick={() => void handleSubmit(activity.label)}
+                            className={`flex w-full items-center justify-between rounded-xl border border-[color:var(--color-border)] bg-white text-[color:var(--color-foreground)] shadow-sm transition hover:border-[color:var(--color-brand)] ${
+                              isExpanded ? "px-4 py-3 text-[14px]" : "px-3 py-2 text-sm"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Icon className="h-4 w-4 text-[color:var(--color-brand)]" />
+                              {activity.label}
+                            </span>
+                            <ChevronRight className="h-4 w-4 text-[color:var(--color-muted)]" />
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div
+                      className={`mt-4 flex w-full flex-wrap justify-center gap-2 ${
+                        isExpanded ? "max-w-[560px]" : "max-w-[420px]"
+                      }`}
+                    >
+                      {initialChips.map((chip) => (
                         <Button
-                          key={`followup-${prompt}`}
+                          key={chip}
                           variant="outline"
                           size="sm"
-                          className="h-auto max-w-[210px] rounded-xl px-3 py-1 text-[11px] leading-[1.2]"
-                          onClick={() => void handleSubmit(prompt)}
+                          className="h-auto rounded-full px-3 py-1 text-[11px] font-medium"
+                          onClick={() => void handleSubmit(chip)}
                         >
-                          <span className="text-left">{prompt}</span>
+                          {chip}
                         </Button>
                       ))}
                     </div>
-                  ) : null}
-                  <div ref={messagesEndRef} />
-                </div>
-                {loading && !pendingId ? (
-                  <div className="mr-auto max-w-[60%] rounded-lg border border-[color:var(--color-border)] bg-white px-4 py-3 text-sm text-[color:var(--color-muted)]">
-                    Thinking...
                   </div>
-                ) : null}
+                ) : (
+                  <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+                    <div
+                      ref={scrollContainerRef}
+                      className="flex flex-1 flex-col gap-4 overflow-y-auto pr-2"
+                      onScroll={() => {
+                        const container = scrollContainerRef.current;
+                        if (!container) {
+                          return;
+                        }
+                        const threshold = 40;
+                        const atBottom =
+                          container.scrollHeight -
+                            (container.scrollTop + container.clientHeight) <=
+                          threshold;
+                        setAutoScrollEnabled(atBottom);
+                      }}
+                    >
+                      {messages.map((message) => {
+                        const isHidden =
+                          message.hidden && message.content.trim().length < 120;
+                        if (isHidden) {
+                          return null;
+                        }
+                        return (
+                          <div
+                            key={message.id}
+                            className={`rounded-lg border px-4 py-3 text-sm ${
+                              message.role === "user"
+                                ? "ml-auto max-w-[85%] border-[color:var(--color-brand)] bg-[color:var(--color-brand-soft)] text-[color:var(--color-foreground)]"
+                                : "mr-auto max-w-[90%] border-[color:var(--color-border)] bg-white text-[color:var(--color-foreground)]"
+                            }`}
+                          >
+                            {message.table && Array.isArray(message.table.rows) ? (
+                              <div className="space-y-3">
+                                <div className="text-[13px] font-semibold text-[color:var(--color-foreground)]">
+                                  {message.table.title ?? "Entries"}
+                                </div>
+                                <div className="overflow-hidden rounded-lg border border-[color:var(--color-border)]">
+                                  <table className="w-full text-left text-[12px]">
+                                    <thead className="bg-[color:var(--color-surface-muted)] text-[color:var(--color-muted)]">
+                                      <tr>
+                                        {(message.table.columns ?? []).map((column) => (
+                                          <th
+                                            key={column}
+                                            className="px-3 py-2 font-semibold"
+                                          >
+                                            {column}
+                                          </th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {message.table.type === "content_types"
+                                        ? message.table.rows.map((row) => (
+                                            <tr
+                                              key={row.id}
+                                              className="border-t border-[color:var(--color-border)]"
+                                            >
+                                              <td className="px-3 py-2 font-semibold text-[color:var(--color-foreground)]">
+                                                {row.name ?? "Untitled"}
+                                              </td>
+                                              <td className="px-3 py-2 text-[color:var(--color-muted)]">
+                                                {row.uid && stackUid ? (
+                                                  <a
+                                                    className="text-[color:var(--color-brand)] hover:underline"
+                                                    href={`${appBaseUrl}/#!/stack/${stackUid}/content-type/${row.uid}/content-type-builder?branch=${encodeURIComponent(
+                                                      branch
+                                                    )}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                  >
+                                                    Edit
+                                                  </a>
+                                                ) : (
+                                                  <span className="text-[color:var(--color-muted)]">
+                                                    Edit
+                                                  </span>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          ))
+                                        : message.table.rows.map((row) => (
+                                            <tr
+                                              key={row.id}
+                                              className="border-t border-[color:var(--color-border)]"
+                                            >
+                                              <td className="px-3 py-2">
+                                                <span className="font-semibold text-[color:var(--color-foreground)]">
+                                                  {row.title}
+                                                </span>
+                                              </td>
+                                              <td className="px-3 py-2 text-[color:var(--color-muted)]">
+                                                {formatDate(row.updatedAt)}
+                                              </td>
+                                              <td className="px-3 py-2 text-[color:var(--color-muted)]">
+                                                {row.author ?? "—"}
+                                              </td>
+                                              <td className="px-3 py-2 text-[color:var(--color-muted)]">
+                                                <div className="flex flex-wrap gap-2">
+                                                  {(() => {
+                                                    const editUrl = buildEditUrl(
+                                                      row.entryUid,
+                                                      row.contentTypeUid
+                                                    );
+                                                    return editUrl ? (
+                                                      <a
+                                                        className="text-[color:var(--color-brand)] hover:underline"
+                                                        href={editUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                      >
+                                                        Edit
+                                                      </a>
+                                                    ) : (
+                                                      <span className="text-[color:var(--color-muted)]">
+                                                        Edit
+                                                      </span>
+                                                    );
+                                                  })()}
+                                                  {(() => {
+                                                    const builderUrl = buildVisualBuilderUrl(
+                                                      row.entryUid,
+                                                      row.contentTypeUid
+                                                    );
+                                                    return builderUrl ? (
+                                                      <a
+                                                        className="text-[color:var(--color-brand)] hover:underline"
+                                                        href={builderUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                      >
+                                                        Visual Builder
+                                                      </a>
+                                                    ) : (
+                                                      <span className="text-[color:var(--color-muted)]">
+                                                        Visual Builder
+                                                      </span>
+                                                    );
+                                                  })()}
+                                                  {(() => {
+                                                    const liveUrl = buildLiveUrl(row.urlPath);
+                                                    return liveUrl ? (
+                                                      <a
+                                                        className="text-[color:var(--color-brand)] hover:underline"
+                                                        href={liveUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                      >
+                                                        View live
+                                                      </a>
+                                                    ) : (
+                                                      <span className="text-[color:var(--color-muted)]">
+                                                        View live
+                                                      </span>
+                                                    );
+                                                  })()}
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ) : (
+                              <p
+                                className={`whitespace-pre-wrap ${
+                                  message.kind === "thinking"
+                                    ? "text-[12px] text-[color:var(--color-muted)]"
+                                    : ""
+                                }`}
+                              >
+                                {message.content}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {!loading && showSuggestions ? (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {suggestedPrompts.map((prompt) => (
+                            <Button
+                              key={`followup-${prompt}`}
+                              variant="outline"
+                              size="sm"
+                              className="h-auto max-w-[210px] rounded-xl px-3 py-1 text-[11px] leading-[1.2]"
+                              onClick={() => void handleSubmit(prompt)}
+                            >
+                              <span className="text-left">{prompt}</span>
+                            </Button>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div ref={messagesEndRef} />
+                    </div>
+                    {loading && !pendingId ? (
+                      <div className="mr-auto max-w-[60%] rounded-lg border border-[color:var(--color-border)] bg-white px-4 py-3 text-sm text-[color:var(--color-muted)]">
+                        Thinking...
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          <div className="space-y-2 px-5 py-4">
-            <form
-              className="rounded-md bg-gradient-to-r from-[#6c5ce7] via-[#8b7cf6] to-[#6c5ce7] p-[1px]"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleSubmit();
-              }}
-            >
-              <div className="relative rounded-[5px] bg-white">
-                <Input
-                  placeholder="Describe what you would like to do..."
-                  className="h-10 border-0 pr-10 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0"
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  disabled={loading}
-                />
-                <Button
-                  type="submit"
-                  size="icon"
-                  variant="ghost"
-                  className="absolute right-1 top-1/2 -translate-y-1/2"
-                  aria-label="Send message"
-                  disabled={loading || !input.trim()}
+              <div className="space-y-2 px-5 py-4">
+                <form
+                  className="rounded-md bg-gradient-to-r from-[#6c5ce7] via-[#8b7cf6] to-[#6c5ce7] p-[1px]"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleSubmit();
+                  }}
                 >
-                  <Send className="h-4 w-4 text-[color:var(--color-muted)]" />
-                </Button>
+                  <div className="relative rounded-[5px] bg-white">
+                    <Input
+                      placeholder="Describe what you would like to do..."
+                      className="h-10 border-0 pr-10 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0"
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      disabled={loading}
+                    />
+                    <Button
+                      type="submit"
+                      size="icon"
+                      variant="ghost"
+                      className="absolute right-1 top-1/2 -translate-y-1/2"
+                      aria-label="Send message"
+                      disabled={loading || !input.trim()}
+                    >
+                      <Send className="h-4 w-4 text-[color:var(--color-muted)]" />
+                    </Button>
+                  </div>
+                </form>
+                <div className="flex items-center justify-between text-[11px] text-[color:var(--color-muted)]">
+                  <p className="flex items-center gap-1 italic">
+                    <Lightbulb className="h-3.5 w-3.5 text-[color:var(--color-muted)]" />
+                    Not sure what to ask?{" "}
+                    <span className="text-[color:var(--color-brand)]">
+                      See what I can do
+                    </span>
+                  </p>
+                  <span>0/2000</span>
+                </div>
               </div>
-            </form>
-            <div className="flex items-center justify-between text-[11px] text-[color:var(--color-muted)]">
-              <p className="flex items-center gap-1 italic">
-                <Lightbulb className="h-3.5 w-3.5 text-[color:var(--color-muted)]" />
-                Not sure what to ask?{" "}
-                <span className="text-[color:var(--color-brand)]">
-                  See what I can do
-                </span>
-              </p>
-              <span>0/2000</span>
-            </div>
-          </div>
+            </>
+          )}
               </aside>
             );
             if (isPinned && dockElement) {
