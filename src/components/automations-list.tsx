@@ -2,7 +2,9 @@
 
 import { Plus, Search } from "lucide-react";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 
+import { AgentCreateOverlay } from "@/components/agent-create-overlay";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,6 +27,7 @@ const sampleAutomations = [
 
 export function AutomationsList() {
   const params = useParams<{ id: string }>();
+  const [agentModalOpen, setAgentModalOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-[color:var(--color-background)]">
@@ -46,6 +49,7 @@ export function AutomationsList() {
             </div>
             <Button
               className="h-9 gap-2 rounded-md bg-[color:var(--color-brand)] px-4 text-[13px] text-white shadow-sm hover:brightness-105"
+              onClick={() => setAgentModalOpen(true)}
             >
               <Plus className="h-4 w-4" />
               New Automation
@@ -91,6 +95,11 @@ export function AutomationsList() {
         </main>
         <div className="polaris-rail" id="polaris-dock" />
       </div>
+      <AgentCreateOverlay
+        open={agentModalOpen}
+        projectId={params.id ?? ""}
+        onClose={() => setAgentModalOpen(false)}
+      />
     </div>
   );
 }

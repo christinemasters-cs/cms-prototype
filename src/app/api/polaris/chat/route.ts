@@ -631,102 +631,98 @@ function recentConversation(history: ChatMessage[]) {
     .join("\n");
 }
 
-function normalizeSuggestions(
-  suggestions: string[],
-  contentTypes: ContentTypeHint[]
-) {
+/**
+ * Fast, deterministic suggestion generator.
+ * No API calls - suggestions are based on context and available content types.
+ */
+function getContextualSuggestions(
+  lastToolCall: ToolName | null,
+  lastContentType: string | null,
+  contentTypes: ContentTypeSummary[],
+  recentEntries: RecentEntry[]
+): string[] {
+  // No content types fetched yet - suggest exploring
   if (contentTypes.length === 0) {
-    return suggestions.length > 0 ? suggestions : ["List all content types"];
+    return ["List content types", "What can you do?", "Help me get started"];
   }
 
-  const uids = new Set(contentTypes.map((type) => type.uid));
-  const isValid = (text: string) => {
-    for (const uid of uids) {
-      if (text.includes(uid)) {
-        return true;
-      }
+  const first = contentTypes[0];
+  const second = contentTypes[1];
+  const firstName = first?.title || first?.uid || "content";
+  const secondName = second?.title || second?.uid;
+
+  // Just listed content types - suggest drilling into one
+  if (lastToolCall === "get_all_content_types") {
+    const suggestions = [`Show ${firstName} entries`];
+    if (secondName) {
+      suggestions.push(`${second?.uid} schema`);
     }
-    return !/blog_post|article|story/i.test(text);
-  };
-
-  const filtered = suggestions.filter(isValid);
-  if (filtered.length > 0) {
-    return filtered;
+    suggestions.push("Create an entry");
+    return suggestions.slice(0, 3);
   }
 
-  const firstUid = contentTypes[0]?.uid;
+  // Just fetched entries - suggest viewing details or creating
+  if (lastToolCall === "get_all_entries" && lastContentType) {
+    const ct = contentTypes.find((c) => c.uid === lastContentType);
+    const name = ct?.title || lastContentType;
+    const suggestions = [`${lastContentType} schema`];
+    if (recentEntries.length > 0) {
+      suggestions.push("View entry details");
+    }
+    suggestions.push(`Create ${name} entry`);
+    return suggestions.slice(0, 3);
+  }
+
+  // Just viewed a single entry - suggest update or related actions
+  if (lastToolCall === "get_single_entry" && lastContentType) {
+    const ct = contentTypes.find((c) => c.uid === lastContentType);
+    const name = ct?.title || lastContentType;
+    return [
+      "Update this entry",
+      `More ${name} entries`,
+      "List content types",
+    ];
+  }
+
+  // Just viewed a schema - suggest entries or creating
+  if (lastToolCall === "get_a_single_content_type" && lastContentType) {
+    const ct = contentTypes.find((c) => c.uid === lastContentType);
+    const name = ct?.title || lastContentType;
+    return [
+      `Show ${name} entries`,
+      `Create ${name} entry`,
+      "List content types",
+    ];
+  }
+
+  // Just created an entry - suggest viewing or creating more
+  if (lastToolCall === "create_an_entry" && lastContentType) {
+    const ct = contentTypes.find((c) => c.uid === lastContentType);
+    const name = ct?.title || lastContentType;
+    return [
+      `Show ${name} entries`,
+      `Create another ${name}`,
+      "List content types",
+    ];
+  }
+
+  // Just updated an entry - suggest viewing entries or other types
+  if (lastToolCall === "update_an_entry" && lastContentType) {
+    const ct = contentTypes.find((c) => c.uid === lastContentType);
+    const name = ct?.title || lastContentType;
+    return [
+      `Show ${name} entries`,
+      "List content types",
+      secondName ? `Show ${secondName} entries` : "Create an entry",
+    ];
+  }
+
+  // Default suggestions based on available content types
   return [
-    `Show schema for ${firstUid}`,
-    `List 5 entries in ${firstUid}`,
-    `Create entry in ${firstUid}`,
-  ].filter(Boolean);
-}
-
-async function callOpenAiSuggestions(input: {
-  userMessage: string;
-  reply: string;
-  contentTypes: ContentTypeHint[];
-  conversation: string;
-  contextMessage?: string;
-}) {
-  const messages: ChatMessage[] = [
-    {
-      role: "system",
-      content:
-        "Return 3 very short suggested follow-up prompts as a JSON array of strings. " +
-        "Each suggestion should be a concrete next step in Contentstack CMA and be under 40 characters. " +
-        "If content types are provided, use their UID exactly. " +
-        "If none are provided, suggest listing content types or asking which type to use. " +
-        "No extra text, no markdown.",
-    },
+    "List content types",
+    `Show ${firstName} entries`,
+    `${first?.uid} schema`,
   ];
-  if (input.contextMessage) {
-    messages.push({ role: "system", content: input.contextMessage });
-  }
-  messages.push({
-    role: "user",
-    content: [
-      `Recent conversation:\n${input.conversation}`,
-      `User request: ${input.userMessage}`,
-      `Assistant reply: ${input.reply}`,
-      `Content types: ${
-        input.contentTypes.length > 0
-          ? input.contentTypes
-              .map((item) => `${item.uid}${item.title ? ` (${item.title})` : ""}`)
-              .join(", ")
-          : "none"
-      }`,
-    ].join("\n\n"),
-  });
-
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getOpenAiKey()}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-5.2",
-      temperature: 0.4,
-      messages,
-    }),
-  });
-
-  if (!response.ok) {
-    return [];
-  }
-
-  const data = (await response.json()) as OpenAiResponse;
-  const content = data.choices[0]?.message?.content ?? "[]";
-  try {
-    const parsed = JSON.parse(content) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed.filter((item): item is string => typeof item === "string");
-    }
-  } catch {
-    return [];
-  }
-  return [];
 }
 
 function parseArgs(rawArgs: string): Record<string, unknown> {
@@ -940,6 +936,9 @@ export async function POST(req: Request) {
         }
 
         let assistantMessage: OpenAiMessage | undefined;
+        let lastToolCall: ToolName | null = null;
+        let lastContentType: string | null = null;
+
         for (let attempt = 0; attempt < 3; attempt += 1) {
           const result = await callOpenAi(withContext(history, contextMessage));
           assistantMessage = result.choices[0]?.message;
@@ -962,6 +961,18 @@ export async function POST(req: Request) {
               sendEvent("status", {
                 state: TOOL_LABELS[call.function.name],
               });
+
+              // Track last tool and content type for suggestions
+              lastToolCall = call.function.name;
+              try {
+                const args = parseArgs(call.function.arguments);
+                if (typeof args.content_type_uid === "string") {
+                  lastContentType = args.content_type_uid;
+                }
+              } catch {
+                // Ignore parse errors for tracking
+              }
+
               try {
                 const toolResult = await runToolCall(call);
                 if (call.function.name === "get_all_content_types") {
@@ -1027,36 +1038,28 @@ export async function POST(req: Request) {
           break;
         }
 
-        const contentTypes = extractContentTypes(history);
-        const contextContentTypes =
-          contentTypes.length > 0
-            ? contentTypes
-            : stackContentTypes.map((item) => ({
-                uid: item.uid,
-                title: item.title,
-              }));
-        const suggestionsRaw = await callOpenAiSuggestions({
-          userMessage: message,
-          reply: "",
-          contentTypes: contextContentTypes,
-          conversation: recentConversation(history),
-          contextMessage: contextMessage.content,
-        });
-        const suggestions = normalizeSuggestions(
-          suggestionsRaw,
-          contextContentTypes
-        );
-        if (suggestions.length > 0) {
-          sendEvent("suggestions", { items: suggestions });
-        }
-
+        // Stream the response first
         let reply = "";
+        sendEvent("status", { state: "Generating response..." });
         await streamOpenAi(withContext(history, contextMessage), (chunk) => {
           reply += chunk;
           sendEvent("delta", { text: chunk });
         });
 
         history.push({ role: "assistant", content: reply });
+
+        // Generate fast, deterministic suggestions based on context
+        const recentEntriesForSuggestions = extractRecentEntries(history);
+        const suggestions = getContextualSuggestions(
+          lastToolCall,
+          lastContentType,
+          stackContentTypes,
+          recentEntriesForSuggestions
+        );
+        if (suggestions.length > 0) {
+          sendEvent("suggestions", { items: suggestions });
+        }
+
         sendEvent("done", {});
         controller.close();
       } catch (error) {

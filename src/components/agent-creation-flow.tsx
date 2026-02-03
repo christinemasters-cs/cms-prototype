@@ -11,7 +11,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PolarisPanel } from "@/components/polaris-panel";
 
 type Agent = {
   id: string;
@@ -23,8 +22,6 @@ type Agent = {
   tools: string[];
   active: boolean;
 };
-
-const STORAGE_KEY = "automate-agents";
 
 type FlowStep = {
   id: string;
@@ -61,6 +58,8 @@ export function AgentCreationFlow() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [inputValue, setInputValue] = useState("");
   const [completed, setCompleted] = useState(false);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   useEffect(() => {
     const firstStep = flowSteps[0];
@@ -111,26 +110,42 @@ export function AgentCreationFlow() {
     setCurrentStep((prev) => prev + 1);
   };
 
-  const handleBuildAgent = () => {
+  const handleBuildAgent = async () => {
+    if (!params.id) {
+      setProjectError("Project ID is required to create an agent.");
+      return;
+    }
+    setSubmissionError(null);
     const agentName = answers["agent-name"] ?? "New Agent";
     const destination = answers["delivery-channel"] ?? "Slack";
     const trigger = answers["trigger"] ?? "HTTP request trigger";
     const instructions = `Goal: ${initialDescription}\n\nSteps:\n1. Receive the request via ${trigger}.\n2. Extract the relevant content.\n3. Format the message for clarity.\n4. Send the formatted message to ${destination} using Send Message.\n\nImportant:\n- Include the original content and any available metadata.`;
-    const newAgent: Agent = {
-      id: `agent-${Date.now()}`,
-      projectId: params.id,
-      name: agentName,
-      description: initialDescription,
-      instructions,
-      triggers: [trigger],
-      tools: ["Send Message"],
-      active: true,
-    };
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    const parsed = stored ? (JSON.parse(stored) as Agent[]) : [];
-    parsed.push(newAgent);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-    router.push(`/automations/projects/${params.id}/agents/${newAgent.id}`);
+    try {
+      const response = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: params.id,
+          name: agentName,
+          description: initialDescription,
+          instructions,
+          triggers: [trigger],
+          tools: ["Send Message"],
+          active: true,
+        }),
+      });
+      const data = (await response.json()) as
+        | { ok: true; item: Agent }
+        | { ok: false; error: string };
+      if (!data.ok) {
+        throw new Error(data.error);
+      }
+      router.push(`/automations/projects/${params.id}/agents/${data.item.id}`);
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error ? error.message : "Failed to create agent."
+      );
+    }
   };
 
   return (
@@ -180,6 +195,17 @@ export function AgentCreationFlow() {
               </div>
             ))}
           </div>
+
+          {projectError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[12px] text-red-600">
+              {projectError}
+            </div>
+          ) : null}
+          {submissionError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[12px] text-red-600">
+              {submissionError}
+            </div>
+          ) : null}
 
           {!completed ? (
             <div className="flex items-center gap-3">

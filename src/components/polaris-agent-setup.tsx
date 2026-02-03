@@ -6,6 +6,12 @@ import { ChevronRight, FlaskConical, MessageCircle, Sparkles } from "lucide-reac
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FloatingCallout } from "@/components/floating-callout";
+import {
+  buildPlan,
+  installGroups,
+  type InstallTemplate,
+} from "@/lib/agent-planning";
 
 type Agent = {
   id: string;
@@ -18,7 +24,7 @@ type Agent = {
   active: boolean;
 };
 
-const STORAGE_KEY = "automate-agents";
+type AgentPayload = Omit<Agent, "id">;
 
 type FlowStep = {
   id: string;
@@ -51,206 +57,71 @@ type PolarisAgentSetupProps = {
   onDone?: () => void;
 };
 
-type InstallTemplate = {
-  id: string;
-  name: string;
-  summary: string;
-  defaultDestination: string;
-  trigger: string;
-  tools: string[];
-};
+const getSuggestionChips = (stepId: string, description: string) => {
+  const lower = description.toLowerCase();
+  const wantsSlack = lower.includes("slack");
+  const wantsBrand =
+    lower.includes("brand") || lower.includes("voice") || lower.includes("tone");
+  const wantsEmail = lower.includes("email") || lower.includes("inbox");
+  const wantsSchedule =
+    lower.includes("schedule") || lower.includes("daily") || lower.includes("weekly");
+  const wantsWebhook =
+    lower.includes("webhook") || lower.includes("http") || lower.includes("api");
 
-type InstallGroup = {
-  label: string;
-  templates: InstallTemplate[];
-};
-
-type PlanNode = {
-  id: string;
-  kind: "trigger" | "tool" | "automation" | "sub-agent" | "action";
-  title: string;
-  detail?: string;
-};
-
-type AgentPlan = {
-  nodes: PlanNode[];
-  assumptions: string[];
-};
-
-const installGroups: InstallGroup[] = [
-  {
-    label: "Marketing",
-    templates: [
-      {
-        id: "tweet-to-slack",
-        name: "Tweet → Slack Notifier",
-        summary: "Send new tweets into a Slack channel with context.",
-        defaultDestination: "#marketing-alerts",
-        trigger: "HTTP request trigger",
-        tools: ["Send Message"],
-      },
-      {
-        id: "release-notes",
-        name: "Release Notes Digest",
-        summary: "Summarize release notes and post in Slack.",
-        defaultDestination: "#product-updates",
-        trigger: "Scheduled trigger",
-        tools: ["Send Message"],
-      },
-      {
-        id: "content-qa",
-        name: "Content QA Checklist",
-        summary: "Run a QA checklist and post results to Slack.",
-        defaultDestination: "#content-qa",
-        trigger: "Manual trigger",
-        tools: ["Send Message"],
-      },
-    ],
-  },
-  {
-    label: "Ops",
-    templates: [
-      {
-        id: "incident-brief",
-        name: "Incident Brief Builder",
-        summary: "Turn incident payloads into a clean Slack summary.",
-        defaultDestination: "#incident-room",
-        trigger: "Webhook trigger",
-        tools: ["Send Message"],
-      },
-    ],
-  },
-  {
-    label: "Executive",
-    templates: [
-      {
-        id: "exec-update",
-        name: "Weekly Exec Update",
-        summary: "Summarize key KPIs and send to leadership.",
-        defaultDestination: "#exec-updates",
-        trigger: "Scheduled trigger",
-        tools: ["Send Message"],
-      },
-    ],
-  },
-];
-
-const suggestionChips: Record<string, string[]> = {
-  "agent-name": ["SlackAlert", "Slack Notifier", "Slack Communicator"],
-  "delivery-channel": ["#marketing-alerts", "#product-updates", "#ops"],
-  trigger: ["HTTP request trigger", "Scheduled trigger", "Webhook trigger"],
-};
-
-const toolCatalog = [
-  { id: "contentstack", label: "Contentstack", keywords: ["contentstack"] },
-  { id: "slack", label: "Slack", keywords: ["slack", "channel"] },
-  { id: "webhook", label: "HTTP Webhook", keywords: ["webhook", "http"] },
-  { id: "email", label: "Email", keywords: ["email"] },
-  { id: "jira", label: "Jira", keywords: ["jira", "ticket"] },
-  { id: "gmail", label: "Gmail", keywords: ["gmail"] },
-  { id: "chatgpt", label: "ChatGPT", keywords: ["chatgpt", "gpt"] },
-  { id: "gemini", label: "Gemini", keywords: ["gemini"] },
-  { id: "brand-kit", label: "Brand Kit", keywords: ["brand", "brand kit"] },
-  { id: "launch", label: "Launch", keywords: ["launch", "deploy"] },
-];
-
-const buildPlan = ({
-  description,
-  answers,
-}: {
-  description: string;
-  answers: Record<string, string>;
-}): AgentPlan => {
-  const normalized = `${description} ${Object.values(answers).join(" ")}`
-    .trim()
-    .toLowerCase();
-  const trigger = answers["trigger"] ?? "HTTP request trigger";
-  const channel = answers["delivery-channel"] ?? "#marketing-alerts";
-  const inferredTools = toolCatalog.filter((tool) =>
-    tool.keywords.some((keyword) => normalized.includes(keyword))
-  );
-  const desiredToolCount =
-    normalized.length > 80 ||
-    normalized.includes("complex") ||
-    normalized.includes("multi")
-      ? 6
-      : 4;
-  const tools = [
-    ...new Map(
-      [
-        ...inferredTools,
-        toolCatalog[0],
-        toolCatalog[1],
-        toolCatalog[2],
-        toolCatalog[3],
-        toolCatalog[4],
-      ].map((tool) => [tool.id, tool])
-    ).values(),
-  ].slice(0, desiredToolCount);
-  const complexityScore = [
-    normalized.includes("automation") || normalized.includes("workflow"),
-    normalized.includes("sub-agent") || normalized.includes("delegate"),
-    normalized.includes("test") || normalized.includes("validate"),
-    normalized.split(" ").length > 14,
-  ].filter(Boolean).length;
-  const assumptions: string[] = [];
-
-  if (!answers["delivery-channel"]) {
-    assumptions.push(`Default channel: ${channel}`);
-  }
-  if (!answers["trigger"]) {
-    assumptions.push(`Assumed trigger: ${trigger}`);
-  }
-  if (inferredTools.length === 0) {
-    assumptions.push("Auto-mapped core tools from your description.");
+  if (stepId === "agent-name") {
+    if (wantsSlack) {
+      return ["Slack Communicator", "Slack Alerts", "Slack Pulse"];
+    }
+    if (wantsBrand) {
+      return ["Brand Guardian", "Voice Keeper", "Tone Guide"];
+    }
+    if (wantsEmail) {
+      return ["Inbox Concierge", "Email Triage", "Mail Digest"];
+    }
+    return ["Ops Companion", "Workflow Helper", "Task Concierge"];
   }
 
-  const nodes: PlanNode[] = [
-    {
-      id: "trigger",
-      kind: "trigger",
-      title: trigger,
-      detail: "Entry point",
-    },
-    ...tools.map((tool) => ({
-      id: `tool-${tool.id}`,
-      kind: "tool",
-      title: tool.label,
-      detail: "Test connection",
-    })),
-  ];
-
-  if (
-    normalized.includes("automation") ||
-    normalized.includes("workflow") ||
-    complexityScore >= 2
-  ) {
-    nodes.push({
-      id: "automation",
-      kind: "automation",
-      title: "Automation",
-      detail: "Orchestrate steps",
-    });
+  if (stepId === "delivery-channel") {
+    if (wantsSlack) {
+      return ["#alerts", "#ops", "#marketing-updates"];
+    }
+    if (wantsEmail) {
+      return ["ops@company.com", "support@company.com", "marketing@company.com"];
+    }
+    return ["Dashboard", "Slack channel", "Email digest"];
   }
 
-  if (normalized.includes("sub-agent") || normalized.includes("delegate")) {
-    nodes.push({
-      id: "sub-agent",
-      kind: "sub-agent",
-      title: "Sub-agent",
-      detail: "Delegate task",
-    });
+  if (stepId === "trigger") {
+    if (wantsWebhook) {
+      return ["Webhook trigger", "HTTP request trigger", "Event API trigger"];
+    }
+    if (wantsSchedule) {
+      return ["Scheduled trigger", "Cron trigger", "Time-based trigger"];
+    }
+    if (wantsEmail) {
+      return ["Inbound email trigger", "Webhook trigger", "Manual trigger"];
+    }
+    return ["HTTP request trigger", "Scheduled trigger", "Webhook trigger"];
   }
 
-  nodes.push({
-    id: "action",
-    kind: "action",
-    title: "Send Message",
-    detail: `Deliver to ${channel}`,
-  });
-
-  return { nodes, assumptions };
+  return [];
 };
+
+const nameCallout = {
+  title: "Name required",
+  body: "Give the agent a name to start the build.",
+};
+
+const destinationCallout = {
+  title: "Destination",
+  body: "Which channel should we send updates to?",
+};
+
+const triggerCallout = {
+  title: "Trigger",
+  body: "How should the agent start?",
+};
+
 
 export function PolarisAgentSetup({
   projectId,
@@ -266,7 +137,19 @@ export function PolarisAgentSetup({
   const [selectedChip, setSelectedChip] = useState<string | null>(null);
   const [testingToolId, setTestingToolId] = useState<string | null>(null);
   const [passedTools, setPassedTools] = useState<Set<string>>(() => new Set());
+  const [triggerStatus, setTriggerStatus] = useState<"idle" | "testing" | "done">(
+    "idle"
+  );
+  const [toolTestIndex, setToolTestIndex] = useState(0);
+  const [toolsComplete, setToolsComplete] = useState(false);
   const testTimeoutRef = useRef<number | null>(null);
+  const toolTestTimeoutRef = useRef<number | null>(null);
+  const triggerStatusRef = useRef(triggerStatus);
+  const pendingStepId = completed ? null : flowSteps[currentStep]?.id ?? null;
+  const nameAnchorRef = useRef<HTMLDivElement | null>(null);
+  const detailsAnchorRef = useRef<HTMLDivElement | null>(null);
+  const triggerAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const messages = useMemo(() => {
     const items: Array<{
@@ -289,7 +172,7 @@ export function PolarisAgentSetup({
         items.push({
           role: "assistant",
           content: step.prompt,
-          chips: suggestionChips[step.id] ?? [],
+          chips: getSuggestionChips(step.id, description),
         });
         items.push({ role: "user", content: answers[step.id] });
       }
@@ -298,7 +181,7 @@ export function PolarisAgentSetup({
       items.push({
         role: "assistant",
         content: flowSteps[currentStep].prompt,
-        chips: suggestionChips[flowSteps[currentStep].id] ?? [],
+        chips: getSuggestionChips(flowSteps[currentStep].id, description),
       });
     }
     return items;
@@ -320,53 +203,143 @@ export function PolarisAgentSetup({
     setCurrentStep((prev) => prev + 1);
   };
 
-  const handleBuildAgent = () => {
-    if (!projectId) {
-      return;
-    }
-    const agentName = answers["agent-name"] ?? "New Agent";
-    const destination = answers["delivery-channel"] ?? "Slack";
-    const trigger = answers["trigger"] ?? "HTTP request trigger";
-    const instructions = `Goal: ${description}\n\nSteps:\n1. Receive the request via ${trigger}.\n2. Extract the relevant content.\n3. Format the message for clarity.\n4. Send the formatted message to ${destination} using Send Message.\n\nImportant:\n- Include the original content and any available metadata.`;
-    const newAgent: Agent = {
-      id: `agent-${Date.now()}`,
-      projectId,
-      name: agentName,
-      description,
-      instructions,
-      triggers: [trigger],
-      tools: ["Send Message"],
-      active: true,
-    };
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    const parsed = stored ? (JSON.parse(stored) as Agent[]) : [];
-    parsed.push(newAgent);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-    onDone?.();
-    router.push(`/automations/projects/${projectId}/agents/${newAgent.id}`);
+  const handleCalloutSubmit = () => {
+    handleNext(inputValue);
   };
 
-  const handleQuickInstall = (template: InstallTemplate) => {
+  const handleSuggestionPick = (value: string) => {
+    setInputValue(value);
+    handleNext(value);
+  };
+
+  const createAgent = async (payload: AgentPayload) => {
+    const response = await fetch("/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = (await response.json()) as
+      | { ok: true; item: Agent }
+      | { ok: false; error: string };
+    if (!data.ok) {
+      throw new Error(data.error);
+    }
+    return data.item;
+  };
+
+  const handleBuildAgent = async () => {
     if (!projectId) {
       return;
     }
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("handoff-loading", "true");
+      window.dispatchEvent(new Event("handoff:show"));
+    }
+    setSubmissionError(null);
+      const agentName = answers["agent-name"] ?? "New Agent";
+      const destination = answers["delivery-channel"] ?? "Default destination";
+      const trigger = answers["trigger"] ?? "Manual trigger";
+      const buildPlanResult = buildPlan({ description, answers });
+      const planTools = buildPlanResult.nodes
+        .filter((node) => node.kind === "tool")
+        .map((node) => node.title);
+      const instructions = `Goal: ${description}\n\nSteps:\n1. Receive the request via ${trigger}.\n2. Extract the relevant content.\n3. Format the message for clarity.\n4. Send the formatted message to ${destination} using Send Message.\n\nImportant:\n- Include the original content and any available metadata.`;
+    try {
+      const created = await createAgent({
+        projectId,
+        name: agentName,
+        description,
+        instructions,
+        triggers: [trigger],
+        tools: planTools.length > 0 ? planTools : ["Agent Core"],
+        active: true,
+      });
+      const handoffPlan = buildPlan({
+        description,
+        answers,
+        tools: planTools.length > 0 ? planTools : ["Agent Core"],
+      });
+      const testedToolIds = handoffPlan.nodes
+        .filter((node) => node.kind === "tool")
+        .map((node) => node.id);
+      const testedToolTitles = handoffPlan.nodes
+        .filter((node) => node.kind === "tool")
+        .map((node) => node.title);
+      window.sessionStorage.setItem(
+        "polaris-handoff",
+        JSON.stringify({
+          agentId: created.id,
+          ts: Date.now(),
+          triggerStatus: triggerStatus === "done" ? "done" : "idle",
+          toolsPassed:
+            toolsComplete || passedTools.size > 0
+              ? Array.from(passedTools.size > 0 ? passedTools : new Set(testedToolIds))
+              : [],
+          toolsPassedTitles: testedToolTitles,
+          plan: handoffPlan,
+        })
+      );
+      onDone?.();
+      router.push(`/automations/projects/${projectId}/agents/${created.id}`);
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error ? error.message : "Failed to create agent."
+      );
+    }
+  };
+
+  const handleQuickInstall = async (template: InstallTemplate) => {
+    if (!projectId) {
+      return;
+    }
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("handoff-loading", "true");
+      window.dispatchEvent(new Event("handoff:show"));
+    }
+    setSubmissionError(null);
     const instructions = `Goal: ${template.summary}\n\nSteps:\n1. Receive the request via ${template.trigger}.\n2. Extract the relevant content.\n3. Format the message for clarity.\n4. Send the formatted message to ${template.defaultDestination} using ${template.tools[0]}.\n\nImportant:\n- Include the original content and any available metadata.`;
-    const newAgent: Agent = {
-      id: `agent-${Date.now()}`,
-      projectId,
-      name: template.name,
-      description: template.summary,
-      instructions,
-      triggers: [template.trigger],
-      tools: template.tools,
-      active: true,
-    };
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    const parsed = stored ? (JSON.parse(stored) as Agent[]) : [];
-    parsed.push(newAgent);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-    onDone?.();
-    router.push(`/automations/projects/${projectId}/agents/${newAgent.id}`);
+    try {
+      const created = await createAgent({
+        projectId,
+        name: template.name,
+        description: template.summary,
+        instructions,
+        triggers: [template.trigger],
+        tools: template.tools,
+        active: true,
+      });
+      const handoffPlan = buildPlan({
+        description: template.summary,
+        answers: {
+          trigger: template.trigger,
+          "delivery-channel": template.defaultDestination,
+        },
+        tools: template.tools,
+      });
+      const testedToolIds = handoffPlan.nodes
+        .filter((node) => node.kind === "tool")
+        .map((node) => node.id);
+      const testedToolTitles = handoffPlan.nodes
+        .filter((node) => node.kind === "tool")
+        .map((node) => node.title);
+      window.sessionStorage.setItem(
+        "polaris-handoff",
+        JSON.stringify({
+          agentId: created.id,
+          ts: Date.now(),
+          triggerStatus: "done",
+          toolsPassed: testedToolIds,
+          toolsPassedTitles: testedToolTitles,
+          plan: handoffPlan,
+        })
+      );
+      onDone?.();
+      router.push(`/automations/projects/${projectId}/agents/${created.id}`);
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error ? error.message : "Failed to create agent."
+      );
+    }
   };
 
   useEffect(() => {
@@ -374,8 +347,36 @@ export function PolarisAgentSetup({
       if (testTimeoutRef.current) {
         window.clearTimeout(testTimeoutRef.current);
       }
+      if (toolTestTimeoutRef.current) {
+        window.clearTimeout(toolTestTimeoutRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    triggerStatusRef.current = triggerStatus;
+  }, [triggerStatus]);
+
+  useEffect(() => {
+    setTriggerStatus("idle");
+    setToolTestIndex(0);
+    setToolsComplete(false);
+    setTestingToolId(null);
+    setPassedTools(new Set());
+  }, [answers["trigger"]]);
+
+  useEffect(() => {
+    if (!expanded || !answers["trigger"] || triggerStatusRef.current !== "idle") {
+      return;
+    }
+    setTriggerStatus("testing");
+    const timeoutId = window.setTimeout(() => {
+      setTriggerStatus("done");
+    }, 1400);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [answers["trigger"], expanded]);
 
   const handleTestTool = (toolId: string) => {
     if (testTimeoutRef.current) {
@@ -399,10 +400,46 @@ export function PolarisAgentSetup({
   );
   const triggerNode = plan.nodes.find((node) => node.kind === "trigger");
   const toolNodes = plan.nodes.filter((node) => node.kind === "tool");
-  const visibleTools = toolNodes.slice(0, 4);
+  const visibleTools = useMemo(() => toolNodes.slice(0, 4), [toolNodes]);
   const extraToolsCount = Math.max(0, toolNodes.length - visibleTools.length);
   const actionNode = plan.nodes.find((node) => node.kind === "action");
   const showWorkflow = expanded;
+  const hasAgentName = Boolean(answers["agent-name"]);
+  const showTrigger = Boolean(answers["trigger"]) || pendingStepId === "trigger";
+  const showTools = triggerStatus !== "idle";
+  const toolsTesting = triggerStatus === "done" && !toolsComplete;
+  const toolsDone = toolsComplete;
+  const buildReady = triggerStatus === "done" && toolsComplete;
+
+  useEffect(() => {
+    if (!expanded || triggerStatus !== "done") {
+      return;
+    }
+    if (visibleTools.length === 0) {
+      setToolsComplete(true);
+      return;
+    }
+    if (toolTestIndex >= visibleTools.length) {
+      setToolsComplete(true);
+      return;
+    }
+    const currentTool = visibleTools[toolTestIndex];
+    if (!currentTool) {
+      setToolsComplete(true);
+      return;
+    }
+    setTestingToolId(currentTool.id);
+    toolTestTimeoutRef.current = window.setTimeout(() => {
+      setPassedTools((prev) => new Set(prev).add(currentTool.id));
+      setTestingToolId(null);
+      setToolTestIndex((prev) => prev + 1);
+    }, 1200);
+    return () => {
+      if (toolTestTimeoutRef.current) {
+        window.clearTimeout(toolTestTimeoutRef.current);
+      }
+    };
+  }, [expanded, triggerStatus, toolTestIndex, visibleTools]);
 
   const chatPanel = (
     <div className="flex h-full min-h-0 flex-col gap-5 overflow-hidden lg:border-l lg:border-[color:var(--color-border)] lg:pl-6">
@@ -410,6 +447,11 @@ export function PolarisAgentSetup({
         <Sparkles className="h-4 w-4 text-[color:var(--color-brand)]" />
         Let’s refine the agent details before we open the builder.
       </div>
+      {submissionError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[12px] text-red-600">
+          {submissionError}
+        </div>
+      ) : null}
 
       {!completed &&
       currentStep === 0 &&
@@ -508,7 +550,7 @@ export function PolarisAgentSetup({
         ))}
       </div>
       {!completed ? (
-        <div className="flex items-center gap-3">
+        <div className="sticky bottom-0 flex items-center gap-3 border-t border-[color:var(--color-border)] bg-white/90 px-1 py-3 backdrop-blur">
           <Input
             value={inputValue}
             onChange={(event) => {
@@ -530,17 +572,19 @@ export function PolarisAgentSetup({
           </Button>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)]/30 px-4 py-3">
+        <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--color-border)] bg-white/90 px-4 py-3 backdrop-blur">
           <div className="flex items-center gap-2 text-[13px] text-[color:var(--color-muted)]">
             <MessageCircle className="h-4 w-4" />
-            Ready to open the agent builder.
+            {buildReady
+              ? "Ready to open the agent builder."
+              : "Testing connections before we open the builder."}
           </div>
           <Button
             onClick={handleBuildAgent}
             className="h-9 gap-2 rounded-md bg-[color:var(--color-brand)] px-4 text-[13px] text-white shadow-sm hover:brightness-105"
-            disabled={!projectId}
+            disabled={!projectId || !buildReady}
           >
-            Open Builder
+            {buildReady ? "Create Agent" : "Testing…"}
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -549,127 +593,289 @@ export function PolarisAgentSetup({
   );
 
   const workflowPanel = showWorkflow ? (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-4 overflow-visible">
       <div className="text-[13px] font-semibold text-[color:var(--color-foreground)]">
         Workflow preview
       </div>
-      <div className="relative flex-1 overflow-hidden rounded-2xl border border-[color:var(--color-border)] bg-white/60">
-        <div className="absolute inset-0 bg-[radial-gradient(circle,_#e5e7eb_1px,_transparent_1px)] [background-size:16px_16px]" />
-        <div className="relative h-full overflow-y-auto px-6 py-6">
+      <div className="relative flex-1">
+        <div className="absolute inset-0 rounded-2xl border border-[color:var(--color-border)] bg-white/60">
+          <div className="absolute inset-0 rounded-2xl bg-[radial-gradient(circle,_#e5e7eb_1px,_transparent_1px)] [background-size:16px_16px]" />
+        </div>
+        <div className="relative px-6 py-6">
           <div className="mx-auto flex w-full max-w-[860px] flex-col space-y-6">
-            <div className="flex flex-col items-center">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--color-muted)]">
-                Trigger
-              </div>
-              <div className="mt-2 w-full max-w-[420px] rounded-2xl border border-[color:var(--color-border)] bg-white/90 px-4 py-3 text-center shadow-[0_6px_18px_rgba(15,23,42,0.08)]">
-                <div className="text-[13px] font-semibold text-[color:var(--color-foreground)]">
-                  {triggerNode?.title ?? "Trigger"}
+            {!hasAgentName && pendingStepId === "agent-name" ? (
+              <div className="relative flex flex-col items-center gap-4">
+                <div
+                  ref={nameAnchorRef}
+                  className="w-full max-w-[520px] rounded-2xl border border-dashed border-emerald-200/80 bg-white/80 px-5 py-4 text-center shadow-[0_12px_28px_rgba(16,185,129,0.18)]"
+                >
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--color-muted)]">
+                    Agent details
+                  </div>
+                  <div className="mt-2 text-[13px] font-semibold text-[color:var(--color-foreground)]">
+                    Waiting for name
+                  </div>
+                  <div className="mt-1 text-[11px] text-[color:var(--color-muted)]">
+                    This card becomes your agent profile.
+                  </div>
                 </div>
-                <div className="mt-1 text-[11px] text-[color:var(--color-muted)]">
-                  Entry point
+              </div>
+            ) : null}
+            {hasAgentName ? (
+              <div className="flex flex-col items-center">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--color-muted)]">
+                  Agent details
+                </div>
+                <div
+                  ref={detailsAnchorRef}
+                  className="relative mt-2 w-full max-w-[520px] rounded-2xl border border-[color:var(--color-border)] bg-white/95 px-5 py-4 text-center shadow-[0_6px_18px_rgba(15,23,42,0.08)]"
+                >
+                  <div className="text-[14px] font-semibold text-[color:var(--color-foreground)]">
+                    {answers["agent-name"]}
+                  </div>
+                  <div className="mt-2 text-[11px] text-[color:var(--color-muted)]">
+                    Instructions and role setup
+                  </div>
                 </div>
               </div>
-              <div className="mt-3 flex flex-col items-center">
-                <span className="h-2 w-2 rounded-full bg-[color:var(--color-brand)]" />
-                <span className="mt-2 h-6 w-px bg-[color:var(--color-border)]" />
-              </div>
-            </div>
+            ) : null}
 
-            <div className="flex flex-col items-center">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--color-muted)]">
-                Tools &amp; tests
+            {showTrigger ? (
+              <div className="flex flex-col items-center">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--color-muted)]">
+                  Trigger
+                </div>
+                <div
+                  ref={triggerAnchorRef}
+                  className={`relative mt-2 w-full max-w-[420px] rounded-2xl border bg-white/90 px-4 py-3 text-center shadow-[0_6px_18px_rgba(15,23,42,0.08)] ${
+                    triggerStatus === "testing"
+                      ? "border-emerald-200 polaris-test-pulse"
+                      : triggerStatus === "done"
+                      ? "border-emerald-300 bg-emerald-50/80"
+                      : "border-[color:var(--color-border)]"
+                  }`}
+                >
+                  <div className="text-[13px] font-semibold text-[color:var(--color-foreground)]">
+                    {triggerNode?.title ?? "Trigger"}
+                  </div>
+                  <div className="mt-1 text-[11px] text-[color:var(--color-muted)]">
+                    {triggerStatus === "testing"
+                      ? "Creating webhook"
+                      : triggerStatus === "done"
+                      ? "Webhook connected"
+                      : "Entry point"}
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-col items-center">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      triggerStatus !== "idle"
+                        ? "bg-emerald-400"
+                        : "bg-[color:var(--color-brand)]"
+                    }`}
+                  />
+                  <span
+                    className={`mt-2 h-6 w-px ${
+                      triggerStatus === "testing"
+                        ? "polaris-test-flow-vertical"
+                        : triggerStatus === "done"
+                        ? "bg-emerald-400"
+                        : "bg-[color:var(--color-border)]"
+                    }`}
+                  />
+                </div>
               </div>
-              <div className="mt-4 flex flex-col items-center">
-                <span className="h-6 w-px bg-[color:var(--color-border)]" />
-              </div>
-              <div className="w-full max-w-[820px] rounded-2xl border border-[color:var(--color-border)] bg-white/80 px-4 py-5 shadow-[0_6px_18px_rgba(15,23,42,0.06)]">
-                <div className="relative">
-                  <div className="absolute left-0 right-0 top-2 h-px bg-[color:var(--color-border)]" />
-                  <div className="absolute left-1/2 top-0 h-4 w-px -translate-x-1/2 bg-[color:var(--color-border)]" />
-                  <div className="grid grid-cols-4 gap-4">
-                    {visibleTools.map((tool) => (
-                      <div
-                        key={`${tool.id}-connector`}
-                        className="flex flex-col items-center"
-                      >
-                        <div className="h-4 w-px bg-[color:var(--color-border)]" />
-                        <span className="mt-1 h-2 w-2 rounded-full bg-[color:var(--color-brand)]" />
-                      </div>
-                    ))}
+            ) : null}
+
+            {showTools ? (
+              <div className="flex flex-col items-center">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--color-muted)]">
+                  Tools &amp; tests
+                </div>
+                <div className="mt-4 flex flex-col items-center">
+                  <span
+                    className={`h-6 w-px ${
+                      toolsTesting
+                        ? "polaris-test-flow-vertical"
+                        : toolsDone
+                        ? "bg-emerald-400"
+                        : "bg-[color:var(--color-border)]"
+                    }`}
+                  />
+                </div>
+                <div className="w-full max-w-[820px] rounded-2xl border border-[color:var(--color-border)] bg-white/80 px-4 py-5 shadow-[0_6px_18px_rgba(15,23,42,0.06)]">
+                  <div className="relative">
+                    <div
+                      className={`absolute left-0 right-0 top-2 h-px ${
+                        toolsTesting
+                          ? "polaris-test-flow"
+                          : toolsDone
+                          ? "bg-emerald-400"
+                          : "bg-[color:var(--color-border)]"
+                      }`}
+                    />
+                    <div
+                      className={`absolute left-1/2 top-0 h-4 w-px -translate-x-1/2 ${
+                        toolsTesting
+                          ? "polaris-test-flow-vertical"
+                          : toolsDone
+                          ? "bg-emerald-400"
+                          : "bg-[color:var(--color-border)]"
+                      }`}
+                    />
+                    <div className="grid grid-cols-4 gap-4">
+                      {visibleTools.map((tool) => (
+                        <div
+                          key={`${tool.id}-connector`}
+                          className="flex flex-col items-center"
+                        >
+                          <div
+                            className={`h-4 w-px ${
+                              toolsTesting
+                                ? "polaris-test-flow-vertical"
+                                : toolsDone
+                                ? "bg-emerald-400"
+                                : "bg-[color:var(--color-border)]"
+                            }`}
+                          />
+                          <span
+                            className={`mt-1 h-2 w-2 rounded-full ${
+                              toolsDone || passedTools.has(tool.id)
+                                ? "bg-emerald-400"
+                                : toolsTesting
+                                ? "bg-emerald-300"
+                                : "bg-[color:var(--color-brand)]"
+                            }`}
+                          />
+                        </div>
+                      ))}
+                      {extraToolsCount > 0 ? (
+                        <div className="flex flex-col items-center">
+                          <div
+                            className={`h-4 w-px ${
+                              toolsTesting
+                                ? "polaris-test-flow-vertical"
+                                : toolsDone
+                                ? "bg-emerald-400"
+                                : "bg-[color:var(--color-border)]"
+                            }`}
+                          />
+                          <span
+                            className={`mt-1 h-2 w-2 rounded-full ${
+                              toolsDone ? "bg-emerald-400" : "bg-[color:var(--color-brand)]"
+                            }`}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="mt-4 grid w-full grid-cols-4 gap-4">
+                    {visibleTools.map((tool) => {
+                      const isTesting = testingToolId === tool.id;
+                      const isDone = passedTools.has(tool.id);
+                      return (
+                        <div
+                          key={tool.id}
+                          className={`rounded-2xl border px-4 py-3 shadow-[0_6px_18px_rgba(15,23,42,0.06)] ${
+                            isDone
+                              ? "border-emerald-300 bg-emerald-50/70"
+                              : isTesting
+                              ? "border-emerald-200 bg-emerald-50/30 polaris-test-pulse"
+                              : "border-[color:var(--color-border)] bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-[color:var(--color-muted)]">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`h-2.5 w-2.5 rounded-full ${
+                                  isDone
+                                    ? "bg-emerald-400"
+                                    : isTesting
+                                    ? "bg-emerald-300"
+                                    : "bg-[color:var(--color-brand)]"
+                                }`}
+                              />
+                              Tool
+                            </div>
+                            <button
+                              type="button"
+                              title="Test connection"
+                              onClick={() => handleTestTool(tool.id)}
+                              className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-muted)] transition hover:border-[color:var(--color-brand)] hover:text-[color:var(--color-brand)]"
+                            >
+                              <FlaskConical className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <div className="mt-2 text-[13px] font-semibold text-[color:var(--color-foreground)]">
+                            {tool.title}
+                          </div>
+                          <div className="mt-2 text-[11px] text-[color:var(--color-muted)]">
+                            {isDone
+                              ? "Connection verified"
+                              : isTesting
+                              ? "Testing tool"
+                              : tool.detail ?? "Queued"}
+                          </div>
+                          <div className="mt-3">
+                            <div
+                              className={`h-1 rounded-full ${
+                                isTesting
+                                  ? "polaris-test-flow"
+                                  : isDone
+                                  ? "bg-emerald-400"
+                                  : "bg-[color:var(--color-border)]"
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                     {extraToolsCount > 0 ? (
-                      <div className="flex flex-col items-center">
-                        <div className="h-4 w-px bg-[color:var(--color-border)]" />
-                        <span className="mt-1 h-2 w-2 rounded-full bg-[color:var(--color-brand)]" />
+                      <div className="rounded-2xl border border-dashed border-[color:var(--color-border)] bg-white px-4 py-3 text-[12px] text-[color:var(--color-muted)]">
+                        <div className="text-[13px] font-semibold text-[color:var(--color-foreground)]">
+                          +{extraToolsCount} more tools
+                        </div>
+                        <p className="mt-2 text-[11px] text-[color:var(--color-muted)]">
+                          Included in the full agent workflow.
+                        </p>
                       </div>
                     ) : null}
                   </div>
                 </div>
-                <div className="mt-4 grid w-full grid-cols-4 gap-4">
-                  {visibleTools.map((tool) => (
-                    <div
-                      key={tool.id}
-                      className="rounded-2xl border border-[color:var(--color-border)] bg-white px-4 py-3 shadow-[0_6px_18px_rgba(15,23,42,0.06)]"
-                    >
-                      <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-[color:var(--color-muted)]">
-                        <div className="flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--color-brand)]" />
-                          Tool
-                        </div>
-                        <button
-                          type="button"
-                          title="Test connection"
-                          onClick={() => handleTestTool(tool.id)}
-                          className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-muted)] transition hover:border-[color:var(--color-brand)] hover:text-[color:var(--color-brand)]"
-                        >
-                          <FlaskConical className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      <div className="mt-2 text-[13px] font-semibold text-[color:var(--color-foreground)]">
-                        {tool.title}
-                      </div>
-                      <div className="mt-2 text-[11px] text-[color:var(--color-muted)]">
-                        {tool.detail ?? "Test connection"}
-                      </div>
-                      <div className="mt-3">
-                        <div
-                          className={`h-1 rounded-full ${
-                            testingToolId === tool.id
-                              ? "polaris-test-flow"
-                              : passedTools.has(tool.id)
-                                ? "bg-emerald-400"
-                                : "bg-[color:var(--color-border)]"
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  {extraToolsCount > 0 ? (
-                    <div className="rounded-2xl border border-dashed border-[color:var(--color-border)] bg-white px-4 py-3 text-[12px] text-[color:var(--color-muted)]">
-                      <div className="text-[13px] font-semibold text-[color:var(--color-foreground)]">
-                        +{extraToolsCount} more tools
-                      </div>
-                      <p className="mt-2 text-[11px] text-[color:var(--color-muted)]">
-                        Included in the full agent workflow.
-                      </p>
-                    </div>
-                  ) : null}
+                <div className="mt-6 flex justify-center">
+                  <div className="flex flex-col items-center">
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        toolsDone ? "bg-emerald-400" : "bg-[color:var(--color-brand)]"
+                      }`}
+                    />
+                    <span
+                      className={`mt-2 h-6 w-px ${
+                        toolsDone
+                          ? "bg-emerald-400"
+                          : "bg-[color:var(--color-border)]"
+                      }`}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="mt-6 flex justify-center">
-                <div className="flex flex-col items-center">
-                  <span className="h-2 w-2 rounded-full bg-[color:var(--color-brand)]" />
-                  <span className="mt-2 h-6 w-px bg-[color:var(--color-border)]" />
-                </div>
-              </div>
-            </div>
+            ) : null}
 
-            {plan.nodes.some((node) => node.kind === "automation") ||
-            plan.nodes.some((node) => node.kind === "sub-agent") ? (
+            {showTools &&
+            (plan.nodes.some((node) => node.kind === "automation") ||
+              plan.nodes.some((node) => node.kind === "sub-agent")) ? (
               <div className="flex flex-col items-center">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--color-muted)]">
                   Orchestration
                 </div>
-                <div className="mt-3 grid w-full gap-3 md:grid-cols-2">
+                <div
+                  className={`mt-3 grid w-full gap-3 md:justify-items-center ${
+                    plan.nodes.some((node) => node.kind === "automation") &&
+                    plan.nodes.some((node) => node.kind === "sub-agent")
+                      ? "md:grid-cols-2"
+                      : "md:grid-cols-1"
+                  }`}
+                >
                   {plan.nodes.some((node) => node.kind === "automation") ? (
                     <div className="rounded-2xl border border-dashed border-[color:var(--color-brand)]/40 bg-[color:var(--color-brand-soft)]/40 px-4 py-3 text-[12px] text-[color:var(--color-muted)]">
                       Automation
@@ -694,19 +900,21 @@ export function PolarisAgentSetup({
               </div>
             ) : null}
 
-            <div className="flex flex-col items-center">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--color-muted)]">
-                Action
-              </div>
-              <div className="mt-2 w-full max-w-[420px] rounded-2xl border border-[color:var(--color-brand)]/40 bg-[color:var(--color-brand-soft)]/40 px-4 py-3 text-center shadow-[0_10px_24px_rgba(108,92,231,0.18)]">
-                <div className="text-[13px] font-semibold text-[color:var(--color-foreground)]">
-                  {actionNode?.title ?? "Send Message"}
+            {showTools ? (
+              <div className="flex flex-col items-center">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--color-muted)]">
+                  Action
                 </div>
-                <div className="mt-2 text-[11px] text-[color:var(--color-muted)]">
-                  {actionNode?.detail ?? "Message template"}
+                <div className="mt-2 w-full max-w-[420px] rounded-2xl border border-[color:var(--color-brand)]/40 bg-[color:var(--color-brand-soft)]/40 px-4 py-3 text-center shadow-[0_10px_24px_rgba(108,92,231,0.18)]">
+                  <div className="text-[13px] font-semibold text-[color:var(--color-foreground)]">
+                    {actionNode?.title ?? "Send Message"}
+                  </div>
+                  <div className="mt-2 text-[11px] text-[color:var(--color-muted)]">
+                    {actionNode?.detail ?? "Message template"}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -729,11 +937,11 @@ export function PolarisAgentSetup({
   ) : null;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-[color:var(--color-border)] px-6 py-4 text-[15px] font-semibold text-[color:var(--color-foreground)]">
         Polaris Agent Setup
       </div>
-      <div className="flex flex-1 flex-col gap-5 overflow-hidden px-8 py-6">
+      <div className="flex flex-1 min-h-0 flex-col gap-5 overflow-y-auto px-8 py-6">
         <div
           className={`grid min-h-0 flex-1 gap-6 ${
             showWorkflow ? "lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]" : ""
@@ -743,6 +951,46 @@ export function PolarisAgentSetup({
           {chatPanel}
         </div>
       </div>
+      {showWorkflow ? (
+        <>
+          <FloatingCallout
+            anchorRef={nameAnchorRef}
+            title={nameCallout.title}
+            body={nameCallout.body}
+            visible={Boolean(!hasAgentName && pendingStepId === "agent-name")}
+            inputValue={inputValue}
+            inputPlaceholder={flowSteps[0].placeholder}
+            onInputChange={setInputValue}
+            onSubmit={handleCalloutSubmit}
+            suggestions={getSuggestionChips("agent-name", description)}
+            onSuggestionClick={handleSuggestionPick}
+          />
+          <FloatingCallout
+            anchorRef={detailsAnchorRef}
+            title={destinationCallout.title}
+            body={destinationCallout.body}
+            visible={Boolean(hasAgentName && pendingStepId === "delivery-channel")}
+            inputValue={inputValue}
+            inputPlaceholder={flowSteps[1].placeholder}
+            onInputChange={setInputValue}
+            onSubmit={handleCalloutSubmit}
+            suggestions={getSuggestionChips("delivery-channel", description)}
+            onSuggestionClick={handleSuggestionPick}
+          />
+          <FloatingCallout
+            anchorRef={triggerAnchorRef}
+            title={triggerCallout.title}
+            body={triggerCallout.body}
+            visible={Boolean(showTrigger && pendingStepId === "trigger")}
+            inputValue={inputValue}
+            inputPlaceholder={flowSteps[2].placeholder}
+            onInputChange={setInputValue}
+            onSubmit={handleCalloutSubmit}
+            suggestions={getSuggestionChips("trigger", description)}
+            onSuggestionClick={handleSuggestionPick}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

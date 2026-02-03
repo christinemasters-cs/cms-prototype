@@ -3,11 +3,14 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   BookOpen,
   ChevronRight,
   Globe,
   Lightbulb,
+  Loader2,
   MoreVertical,
   PenSquare,
   Pin,
@@ -18,10 +21,198 @@ import {
   Zap,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PolarisAgentSetup } from "@/components/polaris-agent-setup";
+
+const VOICE_PROFILES = ["Default", "Red Panda", "Northwind", "Atlas"] as const;
+
+type PromptPreset = {
+  headlines: string[];
+  subheads: string[];
+  welcomeTitles?: string[];
+  welcomeSubheads?: string[];
+  promoCards?: Array<{ title: string; description: string; icon: LucideIcon }>;
+  activities?: Array<{ label: string; icon: LucideIcon }>;
+  chips?: string[];
+  prompts: string[];
+};
+
+type TimeBucket = "morning" | "afternoon" | "evening" | "late";
+
+const hashString = (value: string) => {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const pickFromList = (items: string[], seed: string, fallback = "") => {
+  if (items.length === 0) {
+    return fallback;
+  }
+  const index = hashString(`${seed}|${items.length}`) % items.length;
+  return items[index] ?? items[0] ?? fallback;
+};
+
+const rotateBySeed = <T,>(items: T[], seed: string) => {
+  if (items.length === 0) {
+    return items;
+  }
+  const offset = hashString(`${seed}|rotate`) % items.length;
+  return [...items.slice(offset), ...items.slice(0, offset)];
+};
+
+const getTimeBucket = (date: Date): TimeBucket => {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) {
+    return "morning";
+  }
+  if (hour >= 12 && hour < 17) {
+    return "afternoon";
+  }
+  if (hour >= 17 && hour < 22) {
+    return "evening";
+  }
+  return "late";
+};
+
+const tagKeywords: Record<string, string[]> = {
+  entries: ["entry", "entries", "content item", "draft"],
+  assets: ["asset", "image", "media", "file", "video", "gallery"],
+  models: ["model", "schema", "content type", "field", "global field"],
+  publish: ["publish", "queue", "release", "launch", "go live", "schedule"],
+  tasks: ["task", "review", "approval", "workflow", "assignment"],
+  analytics: ["analytics", "insight", "performance", "metric", "report"],
+  personalize: ["personalize", "variant", "experiment", "audience"],
+  automate: ["automate", "automation", "agent", "trigger", "workflow"],
+  brand: ["brand", "guideline", "logo", "tone"],
+  dev: ["api", "sdk", "webhook", "developer"],
+  marketplace: ["marketplace", "integration", "app", "extension"],
+  academy: ["academy", "course", "training", "lesson"],
+  admin: ["admin", "permission", "role", "user", "audit", "settings"],
+  visual: ["visual", "experience", "builder", "composable", "studio"],
+  data: ["data", "insight", "segment", "trend"],
+  search: ["search", "find"],
+};
+
+const detectTagsFromText = (text: string) => {
+  const lowered = text.toLowerCase();
+  const matches = new Set<string>();
+  for (const [tag, keywords] of Object.entries(tagKeywords)) {
+    if (keywords.some((keyword) => lowered.includes(keyword))) {
+      matches.add(tag);
+    }
+  }
+  return matches;
+};
+
+const getContextTags = (context: string) => {
+  return detectTagsFromText(context.replace(/[-_]/g, " "));
+};
+
+const buildTimePrompts = (context: string, bucket: TimeBucket) => {
+  const tags = getContextTags(context);
+  if (bucket === "morning") {
+    return [
+      tags.has("publish") ? "Morning check: review scheduled publishes" : "Morning check: review today’s priorities",
+      tags.has("analytics") ? "Morning check: review overnight performance signals" : "Start the day with a quick status recap",
+    ];
+  }
+  if (bucket === "afternoon") {
+    return [
+      tags.has("entries") ? "Midday check: review drafts needing updates" : "Midday check: see what’s in progress",
+      tags.has("tasks") ? "Midday check: review approvals waiting on you" : "Midday check: clear the next task",
+    ];
+  }
+  if (bucket === "evening") {
+    return [
+      tags.has("publish") ? "Wrap up: confirm what ships tonight" : "Wrap up: review what’s ready to ship",
+      tags.has("analytics") ? "Wrap up: note any performance changes" : "Wrap up: summarize today’s progress",
+    ];
+  }
+  return [
+    "After hours: queue tasks for tomorrow",
+    "After hours: capture notes for the next shift",
+  ];
+};
+
+const selectPrompts = ({
+  prompts,
+  seed,
+  recentText,
+  recentPrompts,
+  context,
+  timeBucket,
+  count = 6,
+}: {
+  prompts: string[];
+  seed: string;
+  recentText: string;
+  recentPrompts: string[];
+  context: string;
+  timeBucket: TimeBucket;
+  count?: number;
+}) => {
+  if (prompts.length === 0) {
+    return [];
+  }
+
+  const recentPromptSet = new Set(recentPrompts.map((prompt) => prompt.toLowerCase()));
+  const recentTags = detectTagsFromText(recentText);
+  const contextTags = getContextTags(context);
+  const timeKeywords: Record<TimeBucket, string[]> = {
+    morning: ["morning", "start the day", "today"],
+    afternoon: ["midday", "afternoon", "check-in"],
+    evening: ["wrap up", "end of day", "tonight"],
+    late: ["after hours", "tomorrow"],
+  };
+
+  const scored = prompts.map((prompt, index) => {
+    const lowered = prompt.toLowerCase();
+    let score = (prompts.length - index) / prompts.length;
+    if (recentPromptSet.has(lowered)) {
+      score -= 2;
+    }
+    if (timeKeywords[timeBucket].some((keyword) => lowered.includes(keyword))) {
+      score += 1.1;
+    }
+    if ([...recentTags].some((tag) => tagKeywords[tag]?.some((keyword) => lowered.includes(keyword)))) {
+      score += 0.9;
+    }
+    if ([...contextTags].some((tag) => tagKeywords[tag]?.some((keyword) => lowered.includes(keyword)))) {
+      score += 0.8;
+    }
+    score += (hashString(`${seed}|${prompt}`) % 100) / 500;
+    return { prompt, score };
+  });
+
+  scored.sort((a, b) => {
+    if (b.score === a.score) {
+      return a.prompt.localeCompare(b.prompt);
+    }
+    return b.score - a.score;
+  });
+
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const item of scored) {
+    const lowered = item.prompt.toLowerCase();
+    if (seen.has(lowered)) {
+      continue;
+    }
+    seen.add(lowered);
+    unique.push(item.prompt);
+    if (unique.length >= count) {
+      break;
+    }
+  }
+  return unique;
+};
 
 export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   const pathname = usePathname();
@@ -42,17 +233,52 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
     if (normalized.includes("/entry/") || normalized.includes("/edit")) {
       return "Editing";
     }
+    if (normalized.includes("/entries")) {
+      return "Entries";
+    }
+    if (normalized.includes("/assets")) {
+      return "Assets";
+    }
+    if (normalized.includes("/content-model") || normalized.includes("/content-type")) {
+      return "Content Models";
+    }
+    if (normalized.includes("/visual")) {
+      return "Visual Experience";
+    }
+    if (normalized.includes("/composable")) {
+      return "Composable Studio";
+    }
+    if (normalized.includes("/publish-queue") || normalized.includes("/publish")) {
+      return "Publish Queue";
+    }
+    if (normalized.includes("/releases")) {
+      return "Releases";
+    }
+    if (normalized.includes("/tasks")) {
+      return "Tasks";
+    }
+    if (normalized.includes("/settings")) {
+      return "Settings";
+    }
+    if (normalized.includes("/apps")) {
+      return "Apps";
+    }
     const mappings: Array<{ match: string; label: string }> = [
       { match: "/stacks", label: "CMS" },
+      { match: "/headless", label: "Headless CMS" },
       { match: "/personalize", label: "Personalize" },
       { match: "/automation", label: "Automate" },
+      { match: "/agent-os", label: "Automate" },
       { match: "/brand-kit", label: "Brand Kit" },
       { match: "/launch", label: "Launch" },
       { match: "/developerhub", label: "Developer Hub" },
       { match: "/marketplace", label: "Marketplace" },
       { match: "/academy", label: "Academy" },
+      { match: "/data-insights", label: "Data & Insights" },
+      { match: "/insights", label: "Data & Insights" },
       { match: "/product-analytics", label: "Analytics" },
       { match: "/orgadmin", label: "Administration" },
+      { match: "/asset-management", label: "Asset Management" },
     ];
     const matched = mappings.find((item) => normalized.startsWith(item.match));
     return matched?.label ?? "Dashboard";
@@ -64,7 +290,6 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
       id: string;
       role: "user" | "assistant";
       content: string;
-      kind?: "thinking" | "message";
       hidden?: boolean;
       table?: {
         type?: "entries" | "content_types";
@@ -84,6 +309,8 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
       };
     }>
   >([]);
+  const [streamPhase, setStreamPhase] = useState<'idle' | 'planning' | 'tool' | 'streaming' | 'done'>('idle');
+  const [currentOperation, setCurrentOperation] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
@@ -99,7 +326,9 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   const liveToolsRef = useRef<string[]>([]);
   const [pendingSuggestions, setPendingSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(true);
-  const [randomSeed] = useState(() => Math.random());
+  const [timeBucket] = useState<TimeBucket>(() => getTimeBucket(new Date()));
+  const [dayStamp] = useState(() => new Date().toISOString().slice(0, 10));
+  const [recentPrompts, setRecentPrompts] = useState<string[]>([]);
   const [isPinned, setIsPinned] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dockElement, setDockElement] = useState<HTMLElement | null>(null);
@@ -108,6 +337,19 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const shouldDock = open && isPinned;
   const [panelMode, setPanelMode] = useState<"chat" | "agent-setup">("chat");
+  const [contextLabel, setContextLabel] = useState<string | null>(null);
+  const [contextPrompt, setContextPrompt] = useState<string | null>(null);
+  const [contextKey, setContextKey] = useState<string | null>(null);
+  const [pageContextLabel, setPageContextLabel] = useState<string | null>(null);
+  const [pageContextPrompt, setPageContextPrompt] = useState<string | null>(null);
+  const [dismissedApplyId, setDismissedApplyId] = useState<string | null>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(
+    null
+  );
+  const voiceProfiles = VOICE_PROFILES;
+  const [voiceProfile, setVoiceProfile] = useState("Default");
+  const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
+  const voiceMenuRef = useRef<HTMLDivElement | null>(null);
   const [panelPayload, setPanelPayload] = useState<{
     projectId?: string;
     description?: string;
@@ -136,8 +378,34 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   }, []);
 
   useEffect(() => {
+    const stored = window.localStorage.getItem("polarisVoiceProfile");
+    if (stored && VOICE_PROFILES.includes(stored as (typeof VOICE_PROFILES)[number])) {
+      setVoiceProfile(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("polarisRecentPrompts");
+    if (!stored) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setRecentPrompts(parsed.filter((item) => typeof item === "string"));
+      }
+    } catch {
+      setRecentPrompts([]);
+    }
+  }, []);
+
+  useEffect(() => {
     window.localStorage.setItem("polarisPinned", String(isPinned));
   }, [isPinned]);
+
+  useEffect(() => {
+    window.localStorage.setItem("polarisVoiceProfile", voiceProfile);
+  }, [voiceProfile]);
 
   useEffect(() => {
     if (!open) {
@@ -169,6 +437,17 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   }, [open, isExpanded]);
 
   useEffect(() => {
+    const root = document.documentElement;
+    if (open) {
+      root.dataset.polarisOpen = "true";
+      return () => {
+        delete root.dataset.polarisOpen;
+      };
+    }
+    delete root.dataset.polarisOpen;
+  }, [open]);
+
+  useEffect(() => {
     if (!menuOpen) {
       return;
     }
@@ -185,6 +464,22 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   }, [menuOpen]);
 
   useEffect(() => {
+    if (!voiceMenuOpen) {
+      return;
+    }
+    const handleClick = (event: MouseEvent) => {
+      if (!voiceMenuRef.current) {
+        return;
+      }
+      if (!voiceMenuRef.current.contains(event.target as Node)) {
+        setVoiceMenuOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", handleClick);
+    return () => window.removeEventListener("mousedown", handleClick);
+  }, [voiceMenuOpen]);
+
+  useEffect(() => {
     if (!autoScrollEnabled) {
       return;
     }
@@ -192,10 +487,15 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   }, [messages, liveStatus, livePlan, liveTools, loading, autoScrollEnabled]);
 
   useEffect(() => {
-    const handleOpen = () => setOpen(true);
+    const handleOpen = () => {
+      setOpen(true);
+      if (panelMode !== "agent-setup") {
+        setIsExpanded(false);
+      }
+    };
     const handleClose = () => setOpen(false);
-    const handleExpand = () => setIsExpanded(true);
-    const handleCollapse = () => setIsExpanded(false);
+      const handleExpand = () => setIsExpanded(true);
+      const handleCollapse = () => setIsExpanded(false);
     const handleMode = (
       event: Event & {
         detail?: { mode?: "chat" | "agent-setup"; payload?: typeof panelPayload };
@@ -207,20 +507,118 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
       setPanelMode(event.detail.mode);
       setPanelPayload(event.detail.payload ?? {});
     };
+    const handleContext = (
+      event: Event & {
+        detail?: { contextLabel?: string; contextPrompt?: string; contextKey?: string };
+      }
+    ) => {
+      const label = event.detail?.contextLabel?.trim();
+      const prompt = event.detail?.contextPrompt?.trim();
+      const key = event.detail?.contextKey?.trim();
+      setContextLabel(label && label.length > 0 ? label : null);
+      setContextPrompt(prompt && prompt.length > 0 ? prompt : null);
+      setContextKey(key && key.length > 0 ? key : null);
+      setSelectedSuggestion(null);
+      setDismissedApplyId(null);
+    };
+    const handlePageContext = (
+      event: Event & {
+        detail?: { contextLabel?: string; contextPrompt?: string };
+      }
+    ) => {
+      const label = event.detail?.contextLabel?.trim();
+      const prompt = event.detail?.contextPrompt?.trim();
+      setPageContextLabel(label && label.length > 0 ? label : null);
+      setPageContextPrompt(prompt && prompt.length > 0 ? prompt : null);
+    };
 
     window.addEventListener("polaris:open", handleOpen);
     window.addEventListener("polaris:close", handleClose);
     window.addEventListener("polaris:expand", handleExpand);
     window.addEventListener("polaris:collapse", handleCollapse);
     window.addEventListener("polaris:mode", handleMode as EventListener);
+    window.addEventListener("polaris:context", handleContext as EventListener);
+    window.addEventListener("polaris:page-context", handlePageContext as EventListener);
     return () => {
       window.removeEventListener("polaris:open", handleOpen);
       window.removeEventListener("polaris:close", handleClose);
       window.removeEventListener("polaris:expand", handleExpand);
       window.removeEventListener("polaris:collapse", handleCollapse);
       window.removeEventListener("polaris:mode", handleMode as EventListener);
+      window.removeEventListener("polaris:context", handleContext as EventListener);
+      window.removeEventListener("polaris:page-context", handlePageContext as EventListener);
     };
   }, []);
+
+  const recentContextText = useMemo(() => {
+    const recentMessages = messages
+      .slice(-4)
+      .map((message) => message.content)
+      .join(" ");
+    const storedPrompts = recentPrompts.join(" ");
+    return `${recentMessages} ${storedPrompts}`.trim();
+  }, [messages, recentPrompts]);
+
+  const extractSuggestions = (content: string) => {
+    const rawLines = content
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const candidates = rawLines
+      .map((line) => line.replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, ""))
+      .filter((line) => line.length > 0 && line.length <= 140);
+    if (candidates.length >= 1) {
+      return candidates.slice(0, 5);
+    }
+    const sentence = content.split(/[.!?]/)[0]?.trim() ?? "";
+    if (sentence) {
+      return [sentence.slice(0, 140)];
+    }
+    return [];
+  };
+
+  const lastAssistantMessage = useMemo(
+    () =>
+      [...messages]
+        .reverse()
+        .find(
+          (message) =>
+            message.role === "assistant" && message.content.trim().length > 0
+        ) ?? null,
+    [messages]
+  );
+
+  const suggestionOptions = useMemo(() => {
+    if (!lastAssistantMessage || !contextKey) {
+      return [];
+    }
+    return extractSuggestions(lastAssistantMessage.content);
+  }, [lastAssistantMessage, contextKey]);
+
+  const hasSuggestionOptions = suggestionOptions.length > 1;
+
+  const showApplyActions =
+    Boolean(contextKey) &&
+    Boolean(lastAssistantMessage) &&
+    Boolean(selectedSuggestion) &&
+    !hasSuggestionOptions &&
+    dismissedApplyId !== lastAssistantMessage?.id;
+
+  useEffect(() => {
+    if (suggestionOptions.length === 1) {
+      setSelectedSuggestion((prev) => prev ?? suggestionOptions[0]);
+    }
+  }, [suggestionOptions]);
+
+  const seedKey = useMemo(() => {
+    return [
+      inferredContext,
+      pathname ?? "",
+      dayStamp,
+      timeBucket,
+      recentContextText,
+    ].join("|");
+  }, [dayStamp, inferredContext, pathname, recentContextText, timeBucket]);
 
   const updateMessage = (
     id: string,
@@ -261,6 +659,15 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
     ],
     []
   );
+  const timeWelcomeTitles = useMemo(
+    () => ({
+      morning: ["Good morning ☀️", "Morning momentum", "Start strong today"],
+      afternoon: ["Good afternoon 👋", "Midday momentum", "Keep the flow going"],
+      evening: ["Good evening 🌙", "Wrap up strong", "Evening focus"],
+      late: ["Working late? 🌌", "Night shift mode", "Late-night momentum"],
+    }),
+    []
+  );
   const baseWelcomeSubheads = useMemo(
     () => [
       "Pick a quick action or ask me anything.",
@@ -272,8 +679,17 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
     ],
     []
   );
+  const timeWelcomeSubheads = useMemo(
+    () => ({
+      morning: ["Kick off with a quick content sweep.", "Start the day with a fast content check."],
+      afternoon: ["Check what’s in flight and keep things moving.", "Midday is perfect for quick updates."],
+      evening: ["Wrap up with a final review or ship-ready tasks.", "Close the loop on today’s content."],
+      late: ["Capture notes and queue tomorrow’s work.", "Lightweight tasks are perfect right now."],
+    }),
+    []
+  );
 
-  const promptPresets = useMemo(() => {
+  const promptPresets = useMemo<Record<string, PromptPreset>>(() => {
     return {
       Dashboard: {
         headlines: [
@@ -311,21 +727,29 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
             description: "Manage content",
             icon: Globe,
           },
+          {
+            title: "Review Queue",
+            description: "Publish status",
+            icon: Rocket,
+          },
         ],
         activities: [
           { label: "Review Pending: Q4 Roadmap", icon: Zap },
           { label: "New Course: Mastering Workflows", icon: BookOpen },
           { label: "Guide: Content Modeling", icon: Sparkles },
           { label: "API Reference: Delivery API", icon: Rocket },
+          { label: "Reminder: Publish queue review", icon: Zap },
         ],
-        chips: ["Draft a summary", "Check SEO status", "Find related assets"],
+        chips: ["Draft a summary", "Check SEO status", "Find related assets", "Review publish queue"],
         prompts: [
-          [
-            "List content types",
-            "Show latest entries",
-            "Create a draft entry",
-          ],
-          ["Find my last edits", "Show entry schema", "Update an entry"],
+          "Show recent entries",
+          "List content types",
+          "Find my last edits",
+          "Create a draft entry",
+          "Review publish queue",
+          "Show recent assets",
+          "Summarize recent updates",
+          "Open Visual Builder",
         ],
       },
       CMS: {
@@ -360,6 +784,11 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
             description: "Manage content",
             icon: Globe,
           },
+          {
+            title: "Review Queue",
+            description: "Publish status",
+            icon: Rocket,
+          },
         ],
         activities: [
           { label: "Review Pending: Content updates", icon: Zap },
@@ -367,10 +796,313 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
           { label: "API Reference: Delivery API", icon: Rocket },
           { label: "Course: Entry workflows", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["Draft a summary", "Find related assets", "Check SEO status", "Review publish queue"],
         prompts: [
-          ["List content types", "Show entry schema", "Find latest entries"],
-          ["Find entries by type", "Update a draft entry", "Create new entry"],
+          "List content types",
+          "Show entry schema",
+          "Find latest entries",
+          "Find entries by type",
+          "Update a draft entry",
+          "Create new entry",
+          "Find related assets",
+          "Show global fields",
+          "Review publish queue",
+        ],
+      },
+      "Headless CMS": {
+        headlines: [
+          "Headless CMS workspace",
+          "Schema-first content",
+          "Power the content layer",
+        ],
+        subheads: [
+          "Inspect schemas, entries, and API-ready content.",
+          "Move fast with content models and entry payloads.",
+        ],
+        welcomeTitles: [
+          "Headless CMS ready",
+          "Schema-first workflows",
+          "Content API mode",
+        ],
+        welcomeSubheads: [
+          "Need a schema or an entry payload? I can pull it fast.",
+          "Start with a content type and I’ll drill into entries.",
+        ],
+        promoCards: [
+          {
+            title: "Content Types",
+            description: "Review schemas",
+            icon: Sparkles,
+          },
+          {
+            title: "Delivery API",
+            description: "Payloads & queries",
+            icon: Rocket,
+          },
+        ],
+        activities: [
+          { label: "Guide: Content Modeling", icon: Sparkles },
+          { label: "API Reference: Delivery API", icon: Rocket },
+          { label: "Course: Headless foundations", icon: BookOpen },
+        ],
+        chips: ["Generate sample payload", "Check locales", "Find updated entries"],
+        prompts: [
+          "List content types",
+          "Show entry schema",
+          "Generate sample entry payload",
+          "Find entries updated this week",
+          "Check locales and environments",
+          "Review webhooks",
+          "Create a draft entry",
+        ],
+      },
+      Entries: {
+        headlines: ["Entries hub", "Entry management", "Find and update entries"],
+        subheads: ["Search, create, and update entries fast.", "Drill into entries by type, status, or author."],
+        welcomeTitles: ["Entries, ready", "Entry editor mode", "Let’s update entries"],
+        welcomeSubheads: ["Find entries by type or status.", "Need the latest drafts? I can pull them up."],
+        promoCards: [
+          { title: "Create Entry", description: "New content", icon: PenSquare },
+          { title: "Find Drafts", description: "Review drafts", icon: Sparkles },
+        ],
+        activities: [
+          { label: "Review Pending: Draft updates", icon: Zap },
+          { label: "Guide: Entry workflows", icon: BookOpen },
+        ],
+        chips: ["Show latest entries", "Find entries by type", "Create new entry"],
+        prompts: [
+          "Show latest entries",
+          "Find entries by type",
+          "Find entries updated today",
+          "Create a new entry",
+          "Update a draft entry",
+          "Show entry schema",
+          "Find entries by author",
+        ],
+      },
+      Assets: {
+        headlines: ["Assets ready", "Asset workflow", "Manage assets fast"],
+        subheads: ["Find, review, and replace assets quickly.", "Track usage and keep assets organized."],
+        welcomeTitles: ["Assets in focus", "Asset management", "Keep media fresh"],
+        welcomeSubheads: ["Show the latest assets or find usage quickly.", "Need asset references? I can help."],
+        promoCards: [
+          { title: "Latest Assets", description: "Recent uploads", icon: Sparkles },
+          { title: "Find Usage", description: "Asset references", icon: Rocket },
+        ],
+        activities: [
+          { label: "Review Pending: Asset refresh", icon: Zap },
+          { label: "Guide: Asset workflows", icon: BookOpen },
+        ],
+        chips: ["Show latest assets", "Find asset usage", "Replace an asset"],
+        prompts: [
+          "Show latest assets",
+          "Find assets by tag",
+          "Find where an asset is used",
+          "Replace an asset",
+          "Organize assets by folder",
+          "Find large assets to optimize",
+        ],
+      },
+      "Asset Management": {
+        headlines: ["Asset management", "Keep assets organized", "Asset hygiene mode"],
+        subheads: ["Audit, organize, and refresh asset libraries.", "Track usage and optimize assets fast."],
+        welcomeTitles: ["Asset hygiene", "Asset management", "Keep media tidy"],
+        welcomeSubheads: ["Need asset usage details or latest uploads?", "Let’s clean up and optimize assets."],
+        promoCards: [
+          { title: "Asset Audit", description: "Usage & size", icon: Sparkles },
+          { title: "Replace Asset", description: "Swap files", icon: Rocket },
+        ],
+        activities: [
+          { label: "Review Pending: Asset audit", icon: Zap },
+          { label: "Guide: Asset governance", icon: BookOpen },
+        ],
+        chips: ["Find unused assets", "Show latest assets", "Find asset references"],
+        prompts: [
+          "Find unused assets",
+          "Show latest assets",
+          "Find where an asset is used",
+          "Replace an asset",
+          "Organize assets by folder",
+          "Find large assets to optimize",
+        ],
+      },
+      "Content Models": {
+        headlines: ["Model your content", "Schema studio", "Content modeling"],
+        subheads: ["Review content types and global fields.", "Evolve schemas with confidence."],
+        welcomeTitles: ["Model your content", "Schema studio", "Content models ready"],
+        welcomeSubheads: ["Need a content type schema? I can pull it fast.", "Start with a content type overview."],
+        promoCards: [
+          { title: "Content Types", description: "Schema overview", icon: Sparkles },
+          { title: "Global Fields", description: "Shared fields", icon: Globe },
+        ],
+        activities: [
+          { label: "Review Pending: Schema updates", icon: Zap },
+          { label: "Guide: Content Modeling", icon: BookOpen },
+        ],
+        chips: ["List content types", "Show entry schema", "Review global fields"],
+        prompts: [
+          "List content types",
+          "Show entry schema",
+          "Review global fields",
+          "Compare two content types",
+          "Find fields used across models",
+          "Create a new content type",
+        ],
+      },
+      "Composable Studio": {
+        headlines: ["Composable Studio", "Visual experiences", "Build pages fast"],
+        subheads: ["Design visual experiences with reusable blocks.", "Preview and iterate on live layouts."],
+        welcomeTitles: ["Composable Studio", "Visual experience mode", "Layout building time"],
+        welcomeSubheads: ["Need a visual experience or preview? I can open it.", "Start with a page or layout entry."],
+        promoCards: [
+          { title: "Open Visual Builder", description: "Preview pages", icon: Rocket },
+          { title: "Experience Library", description: "Layouts & blocks", icon: Sparkles },
+        ],
+        activities: [
+          { label: "Review Pending: Experience updates", icon: Zap },
+          { label: "Guide: Visual Builder", icon: BookOpen },
+        ],
+        chips: ["Open Visual Builder", "Preview latest layout", "Find experience entries"],
+        prompts: [
+          "Open Visual Builder",
+          "List visual experiences",
+          "Preview an entry in Visual Builder",
+          "Find layout entries by template",
+          "Generate component copy ideas",
+          "Check live preview URL",
+        ],
+      },
+      "Visual Experience": {
+        headlines: ["Visual Experience", "Composable experiences", "Build pages fast"],
+        subheads: ["Design visual experiences with reusable blocks.", "Preview and iterate on live layouts."],
+        welcomeTitles: ["Visual Experience", "Layout building time", "Experience mode"],
+        welcomeSubheads: ["Need a visual experience or preview? I can open it.", "Start with a page or layout entry."],
+        promoCards: [
+          { title: "Open Visual Builder", description: "Preview pages", icon: Rocket },
+          { title: "Experience Library", description: "Layouts & blocks", icon: Sparkles },
+        ],
+        activities: [
+          { label: "Review Pending: Experience updates", icon: Zap },
+          { label: "Guide: Visual Builder", icon: BookOpen },
+        ],
+        chips: ["Open Visual Builder", "Preview latest layout", "Find experience entries"],
+        prompts: [
+          "Open Visual Builder",
+          "List visual experiences",
+          "Preview an entry in Visual Builder",
+          "Find layout entries by template",
+          "Generate component copy ideas",
+          "Check live preview URL",
+        ],
+      },
+      "Publish Queue": {
+        headlines: ["Publish queue", "Ready to ship", "Publishing control"],
+        subheads: ["See what’s queued for publish and what’s scheduled.", "Keep releases on track."],
+        welcomeTitles: ["Publish queue ready", "Time to ship", "Release control"],
+        welcomeSubheads: ["Review what’s queued or scheduled.", "Need to move items between releases?"],
+        promoCards: [
+          { title: "Review Queue", description: "Pending publishes", icon: Rocket },
+          { title: "Scheduled Items", description: "Upcoming publishes", icon: Sparkles },
+        ],
+        activities: [
+          { label: "Review Pending: Scheduled publishes", icon: Zap },
+          { label: "Guide: Release management", icon: BookOpen },
+        ],
+        chips: ["Show publish queue", "Review scheduled publishes", "Create a release"],
+        prompts: [
+          "Show items in publish queue",
+          "Review scheduled publishes",
+          "Move items to a release",
+          "Pause a publish",
+          "Show recently published entries",
+        ],
+      },
+      Releases: {
+        headlines: ["Releases", "Release planning", "Ship with confidence"],
+        subheads: ["Group content for coordinated publishing.", "Track release items and readiness."],
+        welcomeTitles: ["Release planning", "Releases ready", "Ship with confidence"],
+        welcomeSubheads: ["Need release details? I can pull them up.", "Start with a release overview."],
+        promoCards: [
+          { title: "List Releases", description: "Active releases", icon: Sparkles },
+          { title: "Release Items", description: "What’s inside", icon: Rocket },
+        ],
+        activities: [
+          { label: "Review Pending: Release approval", icon: Zap },
+          { label: "Guide: Release management", icon: BookOpen },
+        ],
+        chips: ["List releases", "Show release items", "Create a release"],
+        prompts: [
+          "List releases",
+          "Show release items",
+          "Create a release",
+          "Add entries to a release",
+          "Compare release vs main",
+        ],
+      },
+      Tasks: {
+        headlines: ["Tasks", "Workflow tasks", "Approval queue"],
+        subheads: ["Track approvals and keep reviews moving.", "Check tasks that need attention."],
+        welcomeTitles: ["Task tracker", "Approvals ready", "Review tasks"],
+        welcomeSubheads: ["See what’s waiting on you.", "Need to assign or review tasks quickly?"],
+        promoCards: [
+          { title: "Pending Tasks", description: "Awaiting review", icon: Zap },
+          { title: "Assign Task", description: "Delegate work", icon: Sparkles },
+        ],
+        activities: [
+          { label: "Review Pending: Approval tasks", icon: Zap },
+          { label: "Guide: Workflow approvals", icon: BookOpen },
+        ],
+        chips: ["Show pending tasks", "Review approvals", "Assign task"],
+        prompts: [
+          "Show pending tasks",
+          "Review approvals waiting on me",
+          "Assign a task to a teammate",
+          "Create a task for an entry",
+          "Show tasks due today",
+        ],
+      },
+      Settings: {
+        headlines: ["Settings", "Workspace settings", "Configure your stack"],
+        subheads: ["Manage locales, environments, and permissions.", "Keep governance tidy."],
+        welcomeTitles: ["Settings mode", "Configure the stack", "Governance ready"],
+        welcomeSubheads: ["Need roles, locales, or environments? I can help.", "Start with a quick settings check."],
+        promoCards: [
+          { title: "Roles & Permissions", description: "Access control", icon: Sparkles },
+          { title: "Locales", description: "Language support", icon: Globe },
+        ],
+        activities: [
+          { label: "Review Pending: Permission updates", icon: Zap },
+          { label: "Guide: Governance basics", icon: BookOpen },
+        ],
+        chips: ["Review locales", "Show roles & permissions", "Audit recent changes"],
+        prompts: [
+          "Review locales and environments",
+          "Show roles and permissions",
+          "Audit recent changes",
+          "Check webhook configurations",
+          "List stack settings",
+        ],
+      },
+      Apps: {
+        headlines: ["Apps", "Integrations", "Extend the stack"],
+        subheads: ["Manage installed apps and integrations.", "Connect new tools quickly."],
+        welcomeTitles: ["Apps & integrations", "Extension hub", "Plug in tools"],
+        welcomeSubheads: ["Need to review connected apps?", "Start with installed integrations."],
+        promoCards: [
+          { title: "Installed Apps", description: "Current apps", icon: Sparkles },
+          { title: "Connect App", description: "Add integration", icon: Rocket },
+        ],
+        activities: [
+          { label: "Review Pending: App updates", icon: Zap },
+          { label: "Guide: App integrations", icon: BookOpen },
+        ],
+        chips: ["List installed apps", "Connect new app", "Review app permissions"],
+        prompts: [
+          "List installed apps",
+          "Connect a new app",
+          "Review app permissions",
+          "Explore Marketplace integrations",
+          "Check app activity logs",
         ],
       },
       Personalize: {
@@ -394,26 +1126,50 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         ],
         promoCards: [
           {
-            title: "Create Entry",
-            description: "Learn the basics",
-            icon: PenSquare,
+            title: "Create Variant",
+            description: "Personalized content",
+            icon: Sparkles,
           },
           {
-            title: "Global Fields",
-            description: "Manage content",
+            title: "Audience Segments",
+            description: "Targeting",
             icon: Globe,
           },
         ],
         activities: [
           { label: "Review Pending: Variant refresh", icon: Zap },
           { label: "Guide: Content Modeling", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
           { label: "Course: Experiment setup", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Check SEO status", "Find related assets"],
+        chips: ["Find entries to personalize", "Update variant content", "Review experiments"],
         prompts: [
-          ["List content types", "Show entry schema", "Find latest entries"],
-          ["Find entries to test", "Update variant content", "Create entry"],
+          "Find entries to personalize",
+          "Update variant content",
+          "Create a new variant",
+          "Review audience segments",
+          "List personalization experiments",
+        ],
+      },
+      "Data & Insights": {
+        headlines: ["Data & Insights", "Insights workspace", "Connect data to content"],
+        subheads: ["Turn data into content actions.", "Track performance signals across content."],
+        welcomeTitles: ["Data & Insights", "Insight ready", "Performance signals"],
+        welcomeSubheads: ["See what content is trending or slipping.", "Start with a performance overview."],
+        promoCards: [
+          { title: "Top Content", description: "Performance leaders", icon: Sparkles },
+          { title: "Insight Summary", description: "Quick recap", icon: Rocket },
+        ],
+        activities: [
+          { label: "Review Pending: Performance dips", icon: Zap },
+          { label: "Guide: Content analytics", icon: BookOpen },
+        ],
+        chips: ["Show top entries by engagement", "Compare week over week", "Summarize performance"],
+        prompts: [
+          "Show top entries by engagement",
+          "Compare content performance week over week",
+          "Find content with declining performance",
+          "Map performance changes to releases",
+          "Summarize performance signals",
         ],
       },
       Automate: {
@@ -436,27 +1192,79 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
           "Start with recent entries or a schema.",
         ],
         promoCards: [
-          {
-            title: "Create Entry",
-            description: "Learn the basics",
-            icon: PenSquare,
-          },
-          {
-            title: "Global Fields",
-            description: "Manage content",
-            icon: Globe,
-          },
+          { title: "Create Agent", description: "Automation setup", icon: Sparkles },
+          { title: "Workflow Runs", description: "Execution logs", icon: Rocket },
         ],
         activities: [
           { label: "Review Pending: Workflow drafts", icon: Zap },
           { label: "Guide: Automation patterns", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
           { label: "Course: Workflow mastery", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["Create an automation agent", "Review workflow runs", "Set up a trigger"],
         prompts: [
-          ["List content types", "Find latest entries", "Create entry"],
-          ["Update an entry", "Find entries by type", "Show entry schema"],
+          "Create an automation agent",
+          "List automation workflows",
+          "Review workflow runs",
+          "Set up a trigger for new entries",
+          "Generate a draft workflow",
+        ],
+      },
+      "Agent OS": {
+        headlines: [
+          "Agent OS",
+          "Automation command center",
+          "Put content on autopilot",
+        ],
+        subheads: [
+          "Design agents and triggers that keep content moving.",
+          "Track automation runs and adjust quickly.",
+        ],
+        welcomeTitles: [
+          "Agent OS ready ⚡️",
+          "Automation command center",
+          "Agents standing by",
+        ],
+        welcomeSubheads: [
+          "Need a new agent or trigger? I can set it up.",
+          "Start with recent runs or agent plans.",
+        ],
+        promoCards: [
+          { title: "Create Agent", description: "Automation setup", icon: Sparkles },
+          { title: "Workflow Runs", description: "Execution logs", icon: Rocket },
+        ],
+        activities: [
+          { label: "Review Pending: Workflow drafts", icon: Zap },
+          { label: "Guide: Automation patterns", icon: Sparkles },
+          { label: "Course: Workflow mastery", icon: BookOpen },
+        ],
+        chips: ["Create an agent", "Review workflow runs", "Check triggers"],
+        prompts: [
+          "Create an automation agent",
+          "Review workflow runs",
+          "Check active triggers",
+          "Summarize automation performance",
+          "Generate a draft workflow",
+        ],
+      },
+      Automations: {
+        headlines: ["Automations", "Workflow control", "Automation hub"],
+        subheads: ["Manage automation projects and workflow runs.", "Keep agents and triggers aligned."],
+        welcomeTitles: ["Automation hub", "Automations ready", "Workflow control"],
+        welcomeSubheads: ["Need a workflow overview?", "Start with recent runs or triggers."],
+        promoCards: [
+          { title: "Workflow Runs", description: "Execution logs", icon: Sparkles },
+          { title: "Create Agent", description: "Automation setup", icon: Rocket },
+        ],
+        activities: [
+          { label: "Review Pending: Automation runs", icon: Zap },
+          { label: "Guide: Automation patterns", icon: BookOpen },
+        ],
+        chips: ["Review workflow runs", "Create an automation agent", "Check triggers"],
+        prompts: [
+          "Review workflow runs",
+          "Create an automation agent",
+          "Check active triggers",
+          "Summarize automation performance",
         ],
       },
       "Brand Kit": {
@@ -480,26 +1288,28 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         ],
         promoCards: [
           {
-            title: "Create Entry",
-            description: "Learn the basics",
-            icon: PenSquare,
+            title: "Brand Assets",
+            description: "Logos & colors",
+            icon: Sparkles,
           },
           {
-            title: "Global Fields",
-            description: "Manage content",
+            title: "Guidelines",
+            description: "Tone & voice",
             icon: Globe,
           },
         ],
         activities: [
           { label: "Review Pending: Brand refresh", icon: Zap },
           { label: "Guide: Content Modeling", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
           { label: "Course: Brand workflows", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["Find brand assets", "Update brand guidelines", "Review tone of voice"],
         prompts: [
-          ["List content types", "Find latest entries", "Update brand entry"],
-          ["Show entry schema", "Find asset references", "Create entry"],
+          "Find brand assets",
+          "Update brand guidelines entry",
+          "List brand-approved assets",
+          "Review tone of voice entries",
+          "Create a brand update summary",
         ],
       },
       Launch: {
@@ -523,26 +1333,28 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         ],
         promoCards: [
           {
-            title: "Create Entry",
-            description: "Learn the basics",
-            icon: PenSquare,
+            title: "Launch Checklist",
+            description: "Ship readiness",
+            icon: Sparkles,
           },
           {
-            title: "Global Fields",
-            description: "Manage content",
-            icon: Globe,
+            title: "Release Items",
+            description: "Launch content",
+            icon: Rocket,
           },
         ],
         activities: [
           { label: "Review Pending: Launch checklist", icon: Zap },
           { label: "Guide: Content Modeling", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
           { label: "Course: Launch planning", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["Review launch checklist", "Find launch assets", "Schedule publish"],
         prompts: [
-          ["Find latest entries", "Update an entry", "Create entry"],
-          ["Show entry schema", "List content types", "Find entries by type"],
+          "Review launch checklist",
+          "Show release items for launch",
+          "Find launch assets",
+          "Update launch copy",
+          "Schedule publish for launch",
         ],
       },
       "Developer Hub": {
@@ -566,26 +1378,29 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         ],
         promoCards: [
           {
-            title: "Create Entry",
-            description: "Learn the basics",
-            icon: PenSquare,
+            title: "Schema Explorer",
+            description: "Content types",
+            icon: Sparkles,
           },
           {
-            title: "Global Fields",
-            description: "Manage content",
-            icon: Globe,
+            title: "API Payloads",
+            description: "JSON previews",
+            icon: Rocket,
           },
         ],
         activities: [
           { label: "Review Pending: API updates", icon: Zap },
           { label: "Guide: Content Modeling", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
           { label: "Course: API fundamentals", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["Show entry schema", "Get entry JSON", "Review webhooks"],
         prompts: [
-          ["List content types", "Show entry schema", "Find latest entries"],
-          ["Get single entry", "Update entry", "Create entry"],
+          "List content types",
+          "Show entry schema",
+          "Get single entry JSON",
+          "Generate sample API query",
+          "Review webhook payloads",
+          "Check delivery API endpoints",
         ],
       },
       Marketplace: {
@@ -609,26 +1424,28 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         ],
         promoCards: [
           {
-            title: "Create Entry",
-            description: "Learn the basics",
-            icon: PenSquare,
+            title: "Listing Entries",
+            description: "Marketplace content",
+            icon: Sparkles,
           },
           {
-            title: "Global Fields",
-            description: "Manage content",
+            title: "Integration Assets",
+            description: "Logos & media",
             icon: Globe,
           },
         ],
         activities: [
           { label: "Review Pending: Listing updates", icon: Zap },
           { label: "Guide: Content Modeling", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
           { label: "Course: Marketplace basics", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["Update listing copy", "Review listing assets", "List Marketplace entries"],
         prompts: [
-          ["Find latest entries", "List content types", "Show entry schema"],
-          ["Update an entry", "Create entry", "Find entries by type"],
+          "List Marketplace entries",
+          "Update listing copy",
+          "Review integration assets",
+          "Create a new listing entry",
+          "Check listing status",
         ],
       },
       Academy: {
@@ -652,26 +1469,28 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         ],
         promoCards: [
           {
-            title: "Create Entry",
-            description: "Learn the basics",
-            icon: PenSquare,
+            title: "Latest Lessons",
+            description: "Recent updates",
+            icon: Sparkles,
           },
           {
-            title: "Global Fields",
-            description: "Manage content",
-            icon: Globe,
+            title: "Course Modules",
+            description: "Organize content",
+            icon: BookOpen,
           },
         ],
         activities: [
           { label: "Review Pending: Course updates", icon: Zap },
           { label: "Guide: Content Modeling", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
           { label: "Course: Training workflows", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["Find latest lessons", "Update course entry", "Create new module"],
         prompts: [
-          ["Find latest entries", "Show entry schema", "Update an entry"],
-          ["List content types", "Create entry", "Find entries by type"],
+          "Find latest lessons",
+          "Update course entry",
+          "Create a new module",
+          "Review training content for accuracy",
+          "List instructors and authors",
         ],
       },
       Analytics: {
@@ -694,27 +1513,20 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
           "Find the content behind the numbers.",
         ],
         promoCards: [
-          {
-            title: "Create Entry",
-            description: "Learn the basics",
-            icon: PenSquare,
-          },
-          {
-            title: "Global Fields",
-            description: "Manage content",
-            icon: Globe,
-          },
+          { title: "Top Content", description: "Performance leaders", icon: Sparkles },
+          { title: "Insight Summary", description: "Quick recap", icon: Rocket },
         ],
         activities: [
           { label: "Review Pending: Performance dips", icon: Zap },
-          { label: "Guide: Content Modeling", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
-          { label: "Course: Content analytics", icon: BookOpen },
+          { label: "Guide: Content analytics", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["Show top entries", "Compare performance", "Summarize insights"],
         prompts: [
-          ["Find latest entries", "Show entry schema", "Update an entry"],
-          ["List content types", "Find entries by type", "Create entry"],
+          "Show top entries by engagement",
+          "Compare content performance week over week",
+          "Find content with declining performance",
+          "Map performance changes to releases",
+          "Summarize performance signals",
         ],
       },
       Administration: {
@@ -737,27 +1549,20 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
           "Start with a content type overview.",
         ],
         promoCards: [
-          {
-            title: "Create Entry",
-            description: "Learn the basics",
-            icon: PenSquare,
-          },
-          {
-            title: "Global Fields",
-            description: "Manage content",
-            icon: Globe,
-          },
+          { title: "Roles & Permissions", description: "Access control", icon: Sparkles },
+          { title: "Audit Log", description: "Recent changes", icon: Rocket },
         ],
         activities: [
           { label: "Review Pending: Schema updates", icon: Zap },
-          { label: "Guide: Content Modeling", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
-          { label: "Course: Governance basics", icon: BookOpen },
+          { label: "Guide: Governance basics", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["Review roles", "Audit activity log", "Manage users"],
         prompts: [
-          ["List content types", "Show entry schema", "Find latest entries"],
-          ["Find entries by type", "Update an entry", "Create entry"],
+          "Review roles and permissions",
+          "Audit activity log",
+          "Manage users and access",
+          "Review locales and environments",
+          "Check API keys",
         ],
       },
       Agents: {
@@ -781,26 +1586,28 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         ],
         promoCards: [
           {
-            title: "Create Entry",
-            description: "Learn the basics",
-            icon: PenSquare,
+            title: "Agent Plan",
+            description: "Next steps",
+            icon: Sparkles,
           },
           {
-            title: "Global Fields",
-            description: "Manage content",
-            icon: Globe,
+            title: "Entry Context",
+            description: "Recent content",
+            icon: Rocket,
           },
         ],
         activities: [
           { label: "Review Pending: Agent tasks", icon: Zap },
           { label: "Guide: Content Modeling", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
           { label: "Course: Agent workflows", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["List content types", "Find latest entries", "Show entry schema"],
         prompts: [
-          ["List content types", "Find latest entries", "Show entry schema"],
-          ["Create entry", "Update an entry", "Find entries by type"],
+          "List content types",
+          "Find latest entries",
+          "Show entry schema",
+          "Create an entry for an agent",
+          "Update an entry from agent feedback",
         ],
       },
       Editing: {
@@ -837,13 +1644,57 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         activities: [
           { label: "Review Pending: Draft updates", icon: Zap },
           { label: "Guide: Content Modeling", icon: Sparkles },
-          { label: "API Reference: Delivery API", icon: Rocket },
           { label: "Course: Writing for CMS", icon: BookOpen },
         ],
-        chips: ["Draft a summary", "Find related assets", "Check SEO status"],
+        chips: ["Show entry schema", "Find related entries", "Update this entry"],
         prompts: [
-          ["Show entry schema", "Find related entries", "Update this entry"],
-          ["List content types", "Find latest entries", "Create entry"],
+          "Show entry schema",
+          "Find related entries",
+          "Update this entry",
+          "Check SEO status",
+          "Summarize the changes so far",
+        ],
+      },
+      Secrets: {
+        headlines: ["Secrets", "Secure credentials", "Manage secrets"],
+        subheads: ["Rotate and audit secrets safely.", "Keep credentials organized."],
+        welcomeTitles: ["Secrets mode", "Credential hygiene", "Secure updates"],
+        welcomeSubheads: ["Need to review or rotate a secret?", "Start with secret inventory."],
+        promoCards: [
+          { title: "Review Secrets", description: "Inventory", icon: Sparkles },
+          { title: "Rotate Secret", description: "Security", icon: Rocket },
+        ],
+        activities: [
+          { label: "Review Pending: Secret rotation", icon: Zap },
+          { label: "Guide: Security basics", icon: BookOpen },
+        ],
+        chips: ["Review secrets", "Rotate a secret", "Audit secret usage"],
+        prompts: [
+          "Review stored secrets",
+          "Rotate a secret",
+          "Audit secret usage",
+          "Create a new secret",
+        ],
+      },
+      Variables: {
+        headlines: ["Variables", "Runtime variables", "Config values"],
+        subheads: ["Review and update configuration variables.", "Track variable changes safely."],
+        welcomeTitles: ["Variables ready", "Config mode", "Update variables"],
+        welcomeSubheads: ["Need current values or change history?", "Start with variable inventory."],
+        promoCards: [
+          { title: "List Variables", description: "Current config", icon: Sparkles },
+          { title: "Update Variable", description: "Adjust values", icon: Rocket },
+        ],
+        activities: [
+          { label: "Review Pending: Variable updates", icon: Zap },
+          { label: "Guide: Configuration hygiene", icon: BookOpen },
+        ],
+        chips: ["List variables", "Update variable value", "Audit variable changes"],
+        prompts: [
+          "List variables",
+          "Update a variable value",
+          "Audit variable changes",
+          "Create a new variable",
         ],
       },
       Default: {
@@ -886,7 +1737,11 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         ],
         chips: ["Draft a summary", "Find related assets", "Check SEO status"],
         prompts: [
-          ["List content types", "Show entry schema", "Find latest entries"],
+          "List content types",
+          "Show entry schema",
+          "Find latest entries",
+          "Create a draft entry",
+          "Review publish queue",
         ],
       },
     };
@@ -898,13 +1753,20 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   }, [inferredContext, promptPresets]);
 
   const initialWelcomeTitle = useMemo(() => {
+    const timeTitles = timeWelcomeTitles[timeBucket] ?? [];
     const titles = [
+      ...timeTitles,
       ...baseWelcomeTitles,
       ...(initialPreset.welcomeTitles ?? []),
     ];
-    const index = Math.floor(randomSeed * titles.length);
-    return titles[index] ?? baseWelcomeTitles[0];
-  }, [baseWelcomeTitles, initialPreset.welcomeTitles, randomSeed]);
+    return pickFromList(titles, `${seedKey}|welcome-title`, baseWelcomeTitles[0] ?? "");
+  }, [
+    baseWelcomeTitles,
+    initialPreset.welcomeTitles,
+    seedKey,
+    timeBucket,
+    timeWelcomeTitles,
+  ]);
 
   const initialWelcomeSubhead = useMemo(() => {
     const contextNote =
@@ -913,35 +1775,58 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
           ? "Looks like you’re editing an entry."
           : `You’re in ${inferredContext}.`
         : "";
+    const timeSubheads = timeWelcomeSubheads[timeBucket] ?? [];
     const subheads = [
+      ...timeSubheads,
       ...baseWelcomeSubheads,
       ...(initialPreset.welcomeSubheads ?? []),
       ...(contextNote ? [contextNote] : []),
     ];
-    const index = Math.floor(randomSeed * subheads.length);
-    return subheads[index] ?? baseWelcomeSubheads[0];
-  }, [baseWelcomeSubheads, inferredContext, initialPreset.welcomeSubheads, randomSeed]);
+    return pickFromList(subheads, `${seedKey}|welcome-subhead`, baseWelcomeSubheads[0] ?? "");
+  }, [
+    baseWelcomeSubheads,
+    inferredContext,
+    initialPreset.welcomeSubheads,
+    seedKey,
+    timeBucket,
+    timeWelcomeSubheads,
+  ]);
 
   const initialPromoCards = useMemo(() => {
-    return initialPreset.promoCards ?? [];
-  }, [initialPreset.promoCards]);
+    const cards = initialPreset.promoCards ?? [];
+    return rotateBySeed(cards, `${seedKey}|promo-cards`).slice(0, 2);
+  }, [initialPreset.promoCards, seedKey]);
 
   const initialActivities = useMemo(() => {
-    return initialPreset.activities ?? [];
-  }, [initialPreset.activities]);
+    const activities = initialPreset.activities ?? [];
+    return rotateBySeed(activities, `${seedKey}|activities`).slice(0, 4);
+  }, [initialPreset.activities, seedKey]);
 
   const initialChips = useMemo(() => {
-    return initialPreset.chips ?? [];
-  }, [initialPreset.chips]);
+    const chips = initialPreset.chips ?? [];
+    return rotateBySeed(chips, `${seedKey}|chips`).slice(0, 8);
+  }, [initialPreset.chips, seedKey]);
 
   const initialPrompts = useMemo(() => {
-    const options = initialPreset.prompts;
-    if (options.length === 0) {
-      return [];
-    }
-    const index = Math.floor(randomSeed * options.length);
-    return options[index] ?? options[0] ?? [];
-  }, [initialPreset.prompts, randomSeed]);
+    const timePrompts = buildTimePrompts(inferredContext, timeBucket);
+    const options = [...initialPreset.prompts, ...timePrompts];
+    return selectPrompts({
+      prompts: options,
+      seed: seedKey,
+      recentText: recentContextText,
+      recentPrompts,
+      context: inferredContext,
+      timeBucket,
+      count: 6,
+    });
+  }, [
+    inferredContext,
+    initialPreset.prompts,
+    recentContextText,
+    recentPrompts,
+    seedKey,
+    timeBucket,
+  ]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -962,6 +1847,22 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
     return labels[tool] ?? tool;
   };
 
+  const recordRecentPrompt = (prompt: string) => {
+    const cleaned = prompt.trim();
+    if (!cleaned) {
+      return;
+    }
+    setRecentPrompts((prev) => {
+      const normalized = cleaned.toLowerCase();
+      const next = [
+        cleaned,
+        ...prev.filter((item) => item.toLowerCase() !== normalized),
+      ].slice(0, 10);
+      window.localStorage.setItem("polarisRecentPrompts", JSON.stringify(next));
+      return next;
+    });
+  };
+
   const handleClear = () => {
     setMessages([]);
     setShowSuggestions(true);
@@ -974,6 +1875,8 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
     liveToolsRef.current = [];
     setPendingId(null);
     setLoading(false);
+    setStreamPhase('idle');
+    setCurrentOperation(null);
   };
 
   const handleRestart = () => {
@@ -984,9 +1887,6 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
   const handleExport = () => {
     const parts: string[] = [];
     for (const message of messages) {
-      if (message.kind === "thinking") {
-        continue;
-      }
       if (message.table && Array.isArray(message.table.rows)) {
         parts.push(`## ${message.table.title ?? "Table"}`);
         parts.push((message.table.columns ?? []).join(" | "));
@@ -1035,35 +1935,44 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
     setIsExpanded((prev) => !prev);
   };
 
+  const activeContextPrompt = contextPrompt || pageContextPrompt;
+  const activeContextLabel = contextLabel || pageContextLabel;
+  const activeVoiceProfile = voiceProfile !== "Default" ? voiceProfile : null;
+
   const handleSubmit = async (override?: string) => {
     const prompt = override ?? input.trim();
     if (!prompt || loading) {
       return;
     }
+    const contextualPrompt = [
+      activeContextPrompt ? `Context:\n${activeContextPrompt.trim()}` : "",
+      activeVoiceProfile ? `Voice profile:\n${activeVoiceProfile}` : "",
+      prompt,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    recordRecentPrompt(prompt);
 
     const userMessage = { id: crypto.randomUUID(), role: "user" as const, content: prompt };
     const assistantId = crypto.randomUUID();
-    const thinkingId = crypto.randomUUID();
+    setDismissedApplyId(null);
+    setSelectedSuggestion(null);
     setMessages((prev) => [
       ...prev,
       userMessage,
-      {
-        id: thinkingId,
-        role: "assistant",
-        content: "Thinking: Planning next steps",
-        kind: "thinking",
-      },
-      { id: assistantId, role: "assistant", content: "", kind: "message" },
+      { id: assistantId, role: "assistant", content: "" },
     ]);
     setInput("");
     setLoading(true);
+    setStreamPhase('planning');
+    setCurrentOperation("Planning next steps...");
     setLiveStatus("Thinking...");
     setLiveTools([]);
     setLivePlan(null);
     liveStatusRef.current = "Thinking...";
     livePlanRef.current = null;
     liveToolsRef.current = [];
-    setShowSuggestions(true);
+    setShowSuggestions(false);
     setPendingSuggestions([]);
     setPendingId(assistantId);
 
@@ -1073,7 +1982,7 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId,
-          message: prompt,
+          message: contextualPrompt,
           pageContext: inferredContext,
         }),
       });
@@ -1094,10 +2003,12 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         if (event === "status" && typeof data.state === "string") {
           setLiveStatus(data.state);
           liveStatusRef.current = data.state;
+          setCurrentOperation(data.state);
         }
         if (event === "plan" && typeof data.text === "string") {
           setLivePlan(data.text);
           livePlanRef.current = data.text;
+          setCurrentOperation(data.text);
         }
         if (event === "tool" && typeof data.name === "string") {
           const label =
@@ -1106,21 +2017,12 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
           if (!liveToolsRef.current.includes(label)) {
             liveToolsRef.current = [...liveToolsRef.current, label];
           }
+          setStreamPhase('tool');
+          setCurrentOperation(label + "...");
         }
-        const statusText = liveStatusRef.current ?? "Working";
-        const toolsText = liveToolsRef.current
-          .filter((tool) => tool !== statusText)
-          .join(" · ");
-        const thinkingParts = [
-          livePlanRef.current ?? "Planning next steps",
-          statusText,
-          toolsText.length > 0 ? toolsText : null,
-        ].filter(Boolean);
-        updateMessage(thinkingId, (message) => ({
-          ...message,
-          content: `Thinking: ${thinkingParts.join(" • ")}`,
-        }));
         if (event === "delta" && typeof data.text === "string") {
+          setStreamPhase('streaming');
+          setCurrentOperation(null);
           updateMessage(assistantId, (message) => ({
             ...message,
             content: `${message.content}${data.text}`,
@@ -1131,25 +2033,22 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
           setLiveStatus("Completed");
           liveStatusRef.current = "Completed";
           setPendingId(null);
-          updateMessage(thinkingId, (message) => ({
-            ...message,
-            content: "Thinking: Completed",
-          }));
+          setStreamPhase('done');
+          setCurrentOperation(null);
           setShowSuggestions(true);
         }
         if (event === "error" && typeof data.message === "string") {
+          const errorContent = data.message as string;
           updateMessage(assistantId, (message) => ({
             ...message,
-            content: data.message,
+            content: errorContent,
           }));
           setLoading(false);
           setLiveStatus("Error");
           liveStatusRef.current = "Error";
           setPendingId(null);
-          updateMessage(thinkingId, (message) => ({
-            ...message,
-            content: "Thinking: Error",
-          }));
+          setStreamPhase('idle');
+          setCurrentOperation(null);
           setShowSuggestions(true);
         }
         if (event === "suggestions" && Array.isArray(data.items)) {
@@ -1168,12 +2067,27 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
           Array.isArray((data as { rows?: unknown[] }).rows)
         ) {
           updateMessage(assistantId, (message) => ({ ...message, hidden: true }));
+          const tableData = data as {
+            type?: "entries" | "content_types";
+            title?: string;
+            columns?: string[];
+            rows?: Array<{
+              id: string;
+              title: string;
+              updatedAt?: string;
+              author?: string;
+              entryUid?: string;
+              contentTypeUid?: string;
+              urlPath?: string;
+              name?: string;
+              uid?: string;
+            }>;
+          };
           const tableMessage = {
             id: crypto.randomUUID(),
             role: "assistant" as const,
             content: "",
-            kind: "message" as const,
-            table: data,
+            table: tableData,
           };
           setMessages((prev) => [...prev, tableMessage]);
         }
@@ -1205,16 +2119,57 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
         }
       }
     } catch (error) {
-      const message =
+      const errorMessage =
         error instanceof Error ? error.message : "Failed to send message.";
-      updateMessage(assistantId, (msg) => ({ ...msg, content: message }));
+      updateMessage(assistantId, (msg) => ({ ...msg, content: errorMessage }));
       setLoading(false);
       setLiveStatus("Error");
       setPendingId(null);
-      updateMessage(thinkingId, (msg) => ({ ...msg, content: "Thinking: Error" }));
+      setStreamPhase('idle');
+      setCurrentOperation(null);
       setShowSuggestions(true);
     }
   };
+
+  useEffect(() => {
+    const handlePrompt = (
+      event: Event & {
+        detail?: {
+          prompt?: string;
+          expand?: boolean;
+          mode?: "chat" | "agent-setup";
+          contextLabel?: string;
+          contextPrompt?: string;
+        };
+      }
+    ) => {
+      const prompt = event.detail?.prompt?.trim();
+      if (!prompt || loading) {
+        return;
+      }
+      setOpen(true);
+      setPanelMode(event.detail?.mode ?? "chat");
+      setPanelPayload({});
+      if (event.detail?.mode !== "agent-setup") {
+        setIsExpanded(false);
+      }
+      if (typeof event.detail?.contextLabel === "string") {
+        setContextLabel(event.detail.contextLabel || null);
+      }
+      if (typeof event.detail?.contextPrompt === "string") {
+        setContextPrompt(event.detail.contextPrompt || null);
+      }
+      if (typeof event.detail?.contextKey === "string") {
+        setContextKey(event.detail.contextKey || null);
+      }
+      void handleSubmit(prompt);
+    };
+
+    window.addEventListener("polaris:prompt", handlePrompt as EventListener);
+    return () => {
+      window.removeEventListener("polaris:prompt", handlePrompt as EventListener);
+    };
+  }, [handleSubmit, loading]);
 
   const formatDate = (value?: string) => {
     if (!value) {
@@ -1688,21 +2643,108 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
                                   </table>
                                 </div>
                               </div>
-                            ) : (
-                              <p
-                                className={`whitespace-pre-wrap ${
-                                  message.kind === "thinking"
-                                    ? "text-[12px] text-[color:var(--color-muted)]"
-                                    : ""
-                                }`}
-                              >
+                            ) : message.role === "user" ? (
+                              <p className="whitespace-pre-wrap">
                                 {message.content}
                               </p>
+                            ) : message.id === lastAssistantMessage?.id && hasSuggestionOptions ? (
+                              <p className="text-[13px] text-[color:var(--color-foreground)]">
+                                Here are a few options:
+                              </p>
+                            ) : (
+                              <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-[12px] prose-pre:bg-gray-100 prose-pre:p-2 prose-headings:mt-2 prose-headings:mb-1">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {message.content || "..."}
+                                </ReactMarkdown>
+                              </div>
                             )}
+                            {activeVoiceProfile && message.id === lastAssistantMessage?.id ? (
+                              <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)]/60 px-2 py-1 text-[10px] text-[color:var(--color-muted)]">
+                                <span>Generated with</span>
+                                <button
+                                  type="button"
+                                  className="font-semibold text-[color:var(--color-foreground)]"
+                                  onClick={() => setVoiceMenuOpen((prev) => !prev)}
+                                >
+                                  {activeVoiceProfile} voice profile
+                                </button>
+                              </div>
+                            ) : null}
+                            {contextKey && message.id === lastAssistantMessage?.id ? (
+                              <div className="mt-3 space-y-2">
+                                {suggestionOptions.length > 1 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {suggestionOptions.map((option) => (
+                                      <Button
+                                        key={option}
+                                        variant={
+                                          selectedSuggestion === option
+                                            ? "default"
+                                            : "outline"
+                                        }
+                                        size="sm"
+                                        className="h-8 max-w-full text-[11px]"
+                                        onClick={() => setSelectedSuggestion(option)}
+                                      >
+                                        <span className="break-words whitespace-normal">
+                                          {option}
+                                        </span>
+                                      </Button>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                {showApplyActions ? (
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 text-[12px]"
+                                      onClick={() => {
+                                        setDismissedApplyId(message.id);
+                                        setSelectedSuggestion(null);
+                                        setMessages((prev) => [
+                                          ...prev,
+                                          {
+                                            id: crypto.randomUUID(),
+                                            role: "assistant",
+                                            content: "Okay, canceled.",
+                                          },
+                                        ]);
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      className="h-8 text-[12px]"
+                                      onClick={() => {
+                                        if (!selectedSuggestion) {
+                                          return;
+                                        }
+                                        window.dispatchEvent(
+                                          new CustomEvent("polaris:apply", {
+                                            detail: {
+                                              contextKey,
+                                              value: selectedSuggestion,
+                                            },
+                                          })
+                                        );
+                                        setDismissedApplyId(message.id);
+                                      }}
+                                    >
+                                      Apply
+                                    </Button>
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })}
-                      {!loading && showSuggestions ? (
+                      {!loading &&
+                      showSuggestions &&
+                      !showApplyActions &&
+                      !hasSuggestionOptions ? (
                         <div className="flex flex-wrap gap-1.5 pt-1">
                           {suggestedPrompts.map((prompt) => (
                             <Button
@@ -1719,15 +2761,17 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
                       ) : null}
                       <div ref={messagesEndRef} />
                     </div>
-                    {loading && !pendingId ? (
-                      <div className="mr-auto max-w-[60%] rounded-lg border border-[color:var(--color-border)] bg-white px-4 py-3 text-sm text-[color:var(--color-muted)]">
-                        Thinking...
-                      </div>
-                    ) : null}
                   </div>
                 )}
               </div>
               <div className="space-y-2 px-5 py-4">
+                {/* Thinking Indicator - positioned above input */}
+                {loading && currentOperation && (
+                  <div className="flex items-center gap-2 rounded-lg bg-[color:var(--color-surface-muted)] px-3 py-2 text-[12px] text-[color:var(--color-muted)]">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-[color:var(--color-brand)]" />
+                    <span>{currentOperation}</span>
+                  </div>
+                )}
                 <form
                   className="rounded-md bg-gradient-to-r from-[#6c5ce7] via-[#8b7cf6] to-[#6c5ce7] p-[1px]"
                   onSubmit={(event) => {
@@ -1735,24 +2779,86 @@ export function PolarisPanel({ pageContext }: { pageContext?: string }) {
                     void handleSubmit();
                   }}
                 >
-                  <div className="relative rounded-[5px] bg-white">
-                    <Input
-                      placeholder="Describe what you would like to do..."
-                      className="h-10 border-0 pr-10 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0"
-                      value={input}
-                      onChange={(event) => setInput(event.target.value)}
-                      disabled={loading}
-                    />
-                    <Button
-                      type="submit"
-                      size="icon"
-                      variant="ghost"
-                      className="absolute right-1 top-1/2 -translate-y-1/2"
-                      aria-label="Send message"
-                      disabled={loading || !input.trim()}
-                    >
-                      <Send className="h-4 w-4 text-[color:var(--color-muted)]" />
-                    </Button>
+                  <div className="rounded-[5px] bg-white">
+                    {activeContextLabel ? (
+                      <div className="flex items-center gap-2 border-b border-[color:var(--color-border)] bg-[color:var(--color-brand-soft)]/10 px-3 py-2 text-[11px] text-[color:var(--color-muted)]">
+                        <span className="font-semibold text-[color:var(--color-foreground)]">
+                          Operating Context
+                        </span>
+                        <span className="flex-1">{activeContextLabel}</span>
+                        <button
+                          type="button"
+                          className="text-[12px] text-[color:var(--color-muted)] hover:text-[color:var(--color-foreground)]"
+                          aria-label="Clear context"
+                          onClick={() => {
+                            if (contextLabel || contextPrompt || contextKey) {
+                              setContextLabel(null);
+                              setContextPrompt(null);
+                              setContextKey(null);
+                              return;
+                            }
+                            setPageContextLabel(null);
+                            setPageContextPrompt(null);
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center gap-2 border-b border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] px-3 py-2 text-[11px] text-[color:var(--color-muted)]">
+                      <span className="font-semibold text-[color:var(--color-foreground)]">
+                        Brand Kit Voice Profile
+                      </span>
+                      <div className="relative" ref={voiceMenuRef}>
+                        <button
+                          type="button"
+                          className="rounded-full border border-[color:var(--color-border)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--color-foreground)]"
+                          onClick={() => setVoiceMenuOpen((prev) => !prev)}
+                        >
+                          {voiceProfile}
+                        </button>
+                        {voiceMenuOpen ? (
+                          <div className="absolute left-0 bottom-full mb-2 z-40 min-w-[160px] rounded-md border border-[color:var(--color-border)] bg-white p-1 shadow-lg">
+                            {voiceProfiles.map((profile) => (
+                              <button
+                                key={profile}
+                                type="button"
+                                className={`w-full rounded px-3 py-2 text-left text-[12px] ${
+                                  profile === voiceProfile
+                                    ? "bg-[color:var(--color-brand-soft)]/30 text-[color:var(--color-foreground)]"
+                                    : "text-[color:var(--color-foreground)] hover:bg-[color:var(--color-surface-muted)]"
+                                }`}
+                                onClick={() => {
+                                  setVoiceProfile(profile);
+                                  setVoiceMenuOpen(false);
+                                }}
+                              >
+                                {profile}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        placeholder="Describe what you would like to do..."
+                        className="h-10 border-0 pr-10 text-[13px] focus-visible:ring-0 focus-visible:ring-offset-0"
+                        value={input}
+                        onChange={(event) => setInput(event.target.value)}
+                        disabled={loading}
+                      />
+                      <Button
+                        type="submit"
+                        size="icon"
+                        variant="ghost"
+                        className="absolute right-1 top-1/2 -translate-y-1/2"
+                        aria-label="Send message"
+                        disabled={loading || !input.trim()}
+                      >
+                        <Send className="h-4 w-4 text-[color:var(--color-muted)]" />
+                      </Button>
+                    </div>
                   </div>
                 </form>
                 <div className="flex items-center justify-between text-[11px] text-[color:var(--color-muted)]">

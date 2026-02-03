@@ -1,0 +1,41 @@
+{
+  "automations": [
+    {
+      "id": "d21a986c-687a-482f-bd51-afe170dc210e",
+      "name": "content_type",
+      "value": "opportunity",
+      "createdAt": "2026-01-21T15:27:06.286Z",
+      "updatedAt": "2026-01-21T15:27:06.286Z"
+    },
+    {
+      "id": "012f02a7-fb12-4419-9402-73e19915e78b",
+      "name": "number_of_opps",
+      "value": "4",
+      "createdAt": "2026-01-21T15:26:27.759Z",
+      "updatedAt": "2026-01-21T15:26:27.759Z"
+    },
+    {
+      "id": "2989421c-ba82-4735-9428-d38ad8e56750",
+      "name": "admin_email",
+      "value": "staff@example.com",
+      "createdAt": "2026-01-21T08:49:44.752Z",
+      "updatedAt": "2026-01-21T08:49:44.752Z"
+    }
+  ],
+  "hello": [
+    {
+      "id": "abac79da-83d4-4cd7-8cec-14cc04e59961",
+      "name": "number_of_articles",
+      "value": "5",
+      "createdAt": "2026-01-22T05:09:37.104Z",
+      "updatedAt": "2026-01-22T05:09:37.104Z"
+    },
+    {
+      "id": "91892c79-074a-4592-bd25-d0259061ae18",
+      "name": "admin_email",
+      "value": "admin@example.com",
+      "createdAt": "2026-01-22T05:09:10.602Z",
+      "updatedAt": "2026-01-22T05:09:10.602Z"
+    }
+  ]
+}

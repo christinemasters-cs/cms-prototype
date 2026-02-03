@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Info, LayoutGrid, Star } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,8 @@ import { Button } from "@/components/ui/button";
 type AppItem = {
   label: string;
   icon: () => JSX.Element;
-  active?: boolean;
   href?: string;
+  match?: string;
 };
 
 function HomeIcon() {
@@ -218,7 +219,7 @@ function DataInsightsIcon() {
   );
 }
 
-function AutomateIcon() {
+export function AutomateIcon() {
   const id = `automate-${useId()}`;
   const paint0 = `${id}-paint0`;
   const paint1 = `${id}-paint1`;
@@ -613,16 +614,21 @@ function AdminIcon() {
 
 const appItems: AppItem[] = [
   { label: "Home", icon: HomeIcon },
-  { label: "CMS", icon: CmsIcon },
+  { label: "CMS", icon: CmsIcon, href: "/cms/stacks", match: "/cms" },
   { label: "Personalize", icon: PersonalizeIcon },
   { label: "Data & Insights", icon: DataInsightsIcon },
   {
-    label: "Automate",
+    label: "Agent OS",
     icon: AutomateIcon,
-    active: true,
     href: "/automations/projects",
+    match: "/automations",
   },
-  { label: "Brand Kit", icon: BrandKitIcon },
+  {
+    label: "Brand Kit",
+    icon: BrandKitIcon,
+    href: "/brand-kit/projects",
+    match: "/brand-kit",
+  },
   { label: "Launch", icon: LaunchIcon },
   { label: "Developer Hub", icon: DeveloperHubIcon },
   { label: "Marketplace", icon: MarketplaceIcon },
@@ -634,6 +640,7 @@ const appItems: AppItem[] = [
 export function AppSwitcher() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) {
@@ -681,15 +688,14 @@ export function AppSwitcher() {
           <div className="grid grid-cols-3 gap-y-6 text-center">
             {appItems.map((item) => {
               const Icon = item.icon;
+              const isActive = item.match ? pathname?.startsWith(item.match) : false;
               const content = (
                 <>
                   <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)]/60">
                     <Icon />
                   </span>
                   <span
-                    className={`font-medium ${
-                      item.active ? "text-[color:var(--color-brand)]" : ""
-                    }`}
+                    className={`font-medium ${isActive ? "text-[color:var(--color-brand)]" : ""}`}
                   >
                     {item.label}
                   </span>

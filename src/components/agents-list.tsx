@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { MoreVertical, Plus, Search } from "lucide-react";
 import { useParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ProjectTopNav } from "@/components/project-top-nav";
+import { AgentCreateOverlay } from "@/components/agent-create-overlay";
 
 type Agent = {
   id: string;
@@ -21,20 +22,41 @@ type Agent = {
   active: boolean;
 };
 
-const STORAGE_KEY = "automate-agents";
-
 export function AgentsList() {
   const params = useParams<{ id: string }>();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
+    if (!params.id) {
+      setLoading(false);
       return;
     }
-    const parsed = JSON.parse(stored) as Agent[];
-    setAgents(parsed.filter((agent) => agent.projectId === params.id));
+    const loadAgents = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(
+          `/api/agents?projectId=${encodeURIComponent(params.id)}`
+        );
+        const data = (await response.json()) as
+          | { ok: true; items: Agent[] }
+          | { ok: false; error: string };
+        if (!data.ok) {
+          throw new Error(data.error);
+        }
+        setAgents(data.items);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load agents.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadAgents();
   }, [params.id]);
 
   const filtered = useMemo(() => {
@@ -51,19 +73,37 @@ export function AgentsList() {
   }, [agents, query]);
 
   const handleCreateAgent = () => {
-    window.dispatchEvent(new Event("polaris:open"));
-    window.dispatchEvent(new Event("polaris:expand"));
-    window.dispatchEvent(
-      new CustomEvent("polaris:mode", {
-        detail: {
-          mode: "agent-setup",
-          payload: {
-            projectId: params.id ?? "",
-            description: "",
-          },
-        },
-      })
-    );
+    if (!params.id) {
+      window.alert("Project ID is required to create an agent.");
+      return;
+    }
+    setCreateOpen(true);
+  };
+
+  const handleDeleteAgent = async (agentId: string) => {
+    if (!params.id) {
+      return;
+    }
+    const confirmed = window.confirm("Delete this agent? This cannot be undone.");
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const response = await fetch("/api/agents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: params.id, id: agentId }),
+      });
+      const data = (await response.json()) as { ok: boolean; error?: string };
+      if (!data.ok) {
+        throw new Error(data.error ?? "Failed to delete agent.");
+      }
+      setAgents((prev) => prev.filter((agent) => agent.id !== agentId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete agent.");
+    } finally {
+      setMenuOpenId(null);
+    }
   };
 
   return (
@@ -108,7 +148,19 @@ export function AgentsList() {
             </span>
           </div>
 
-          {filtered.length === 0 ? (
+          {error ? (
+            <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-6 py-4 text-[12px] text-red-600">
+              {error}
+            </div>
+          ) : null}
+
+          {loading ? (
+            <div className="mt-6 text-[12px] text-[color:var(--color-muted)]">
+              Loading agents...
+            </div>
+          ) : null}
+
+          {!loading && filtered.length === 0 ? (
             <div className="mt-6 rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-6 py-10 text-center text-[13px] text-[color:var(--color-muted)]">
               No agents yet. Create your first agent to start automating.
             </div>
@@ -120,14 +172,49 @@ export function AgentsList() {
                   className="border-[color:var(--color-border)] shadow-sm transition hover:border-[color:var(--color-brand)]"
                 >
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-[15px] font-semibold text-[color:var(--color-foreground)]">
-                      <Link
-                        href={`/automations/projects/${params.id}/agents/${agent.id}`}
-                        className="hover:text-[color:var(--color-brand)]"
-                      >
-                        {agent.name}
-                      </Link>
-                    </CardTitle>
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="text-[15px] font-semibold text-[color:var(--color-foreground)]">
+                        <Link
+                          href={`/automations/projects/${params.id}/agents/${agent.id}`}
+                          className="hover:text-[color:var(--color-brand)]"
+                        >
+                          {agent.name}
+                        </Link>
+                      </CardTitle>
+                      <div className="relative">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label="Agent actions"
+                          onClick={() =>
+                            setMenuOpenId((prev) =>
+                              prev === agent.id ? null : agent.id
+                            )
+                          }
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                        {menuOpenId === agent.id ? (
+                          <div className="absolute right-0 top-9 z-10 w-32 rounded-md border border-[color:var(--color-border)] bg-white p-1 text-[12px] shadow-lg">
+                            <Link
+                              href={`/automations/projects/${params.id}/agents/${agent.id}`}
+                              className="block rounded px-2 py-1.5 text-[color:var(--color-foreground)] hover:bg-[color:var(--color-surface-muted)]"
+                              onClick={() => setMenuOpenId(null)}
+                            >
+                              Edit
+                            </Link>
+                            <button
+                              type="button"
+                              className="block w-full rounded px-2 py-1.5 text-left text-[color:var(--color-foreground)] hover:bg-[color:var(--color-surface-muted)]"
+                              onClick={() => void handleDeleteAgent(agent.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                     <p className="text-[12px] text-[color:var(--color-muted)]">
                       {agent.description}
                     </p>
@@ -150,6 +237,11 @@ export function AgentsList() {
         </main>
         <div className="polaris-rail" id="polaris-dock" />
       </div>
+      <AgentCreateOverlay
+        open={createOpen}
+        projectId={params.id ?? ""}
+        onClose={() => setCreateOpen(false)}
+      />
     </div>
   );
 }

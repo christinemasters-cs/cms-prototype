@@ -1,0 +1,40 @@
+[
+  {
+    "id": "entry-1",
+    "title": "Composable DXP: What it is and ...",
+    "language": "English - United States",
+    "contentType": "Blog Post",
+    "variants": "—",
+    "version": 3,
+    "status": [
+      "staging",
+      "production"
+    ],
+    "updatedAt": "2026-01-30T22:18:04.119Z",
+    "fields": {
+      "singleLine": "Onze producten",
+      "multiLine": "Type something...",
+      "richText": "Our products\nAt Action, you'll find always surprising assortment at the lowest prices.",
+      "jsonRichText": "{\n  \"type\": \"doc\",\n  \"content\": []\n}"
+    }
+  },
+  {
+    "id": "entry-2",
+    "title": "Homepage",
+    "language": "English - United States",
+    "contentType": "Homepage",
+    "variants": "Location +4",
+    "version": 126,
+    "status": [
+      "development",
+      "production"
+    ],
+    "updatedAt": "2026-01-30T22:18:04.119Z",
+    "fields": {
+      "singleLine": "Homepage hero",
+      "multiLine": "Messaging block",
+      "richText": "Homepage\nHero section copy...",
+      "jsonRichText": "{\n  \"type\": \"doc\",\n  \"content\": []\n}"
+    }
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "aurora-commerce",
+    "name": "Aurora Commerce",
+    "region": "US",
+    "environment": "Production",
+    "members": 6,
+    "starred": true,
+    "createdAt": "2026-01-30T10:49:41.762Z",
+    "updatedAt": "2026-01-30T10:49:41.762Z"
+  },
+  {
+    "id": "harbor-marketing",
+    "name": "Harbor Marketing",
+    "region": "EU",
+    "environment": "Staging",
+    "members": 4,
+    "starred": false,
+    "createdAt": "2026-01-30T10:49:41.762Z",
+    "updatedAt": "2026-01-30T10:49:41.762Z"
+  },
+  {
+    "id": "northbound-docs",
+    "name": "Northbound Docs",
+    "region": "APAC",
+    "environment": "Development",
+    "members": 3,
+    "starred": false,
+    "createdAt": "2026-01-30T10:49:41.762Z",
+    "updatedAt": "2026-01-30T10:49:41.762Z"
+  }
+]

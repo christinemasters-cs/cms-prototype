@@ -1,19 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   BarChart3,
   ChevronDown,
   LayoutGrid,
   Plus,
-  Sparkles,
   Users,
 } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProjectTopNav } from "@/components/project-top-nav";
+import { AgentCreateOverlay } from "@/components/agent-create-overlay";
 
 type Project = {
   id: string;
@@ -38,12 +37,9 @@ const formatDate = (value: string) => {
 
 export function AutomateProjectDashboard() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [agentModalOpen, setAgentModalOpen] = useState(false);
-  const [agentDescription, setAgentDescription] = useState("");
-  const [polarisLaunching, setPolarisLaunching] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -74,6 +70,8 @@ export function AutomateProjectDashboard() {
     };
   }, [project]);
 
+  // Polaris launch handled by AgentCreateOverlay.
+
   return (
     <div className="min-h-screen bg-[color:var(--color-background)]">
       <ProjectTopNav
@@ -84,12 +82,6 @@ export function AutomateProjectDashboard() {
 
       <div className="dashboard-shell">
         <main className="mx-auto w-full px-6 py-6">
-          {polarisLaunching ? (
-            <div className="mb-4 flex items-center gap-2 rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-brand-soft)]/60 px-3 py-2 text-[12px] text-[color:var(--color-foreground)]">
-              <Sparkles className="h-4 w-4 text-[color:var(--color-brand)]" />
-              Launching Polaris focus mode…
-            </div>
-          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-[12px] text-[color:var(--color-muted)]">
@@ -332,78 +324,11 @@ export function AutomateProjectDashboard() {
         />
       </div>
 
-      {agentModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-6">
-          <div className="w-full max-w-[760px] rounded-xl border border-[color:var(--color-border)] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.2)]">
-            <div className="flex items-center justify-between border-b border-[color:var(--color-border)] px-6 py-4">
-              <div className="flex items-center gap-2 text-[16px] font-semibold text-[color:var(--color-foreground)]">
-                Create Agent
-                <span className="text-[color:var(--color-muted)]">?</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                aria-label="Close create agent"
-                onClick={() => setAgentModalOpen(false)}
-              >
-                <span className="text-[18px]">×</span>
-              </Button>
-            </div>
-            <div className="space-y-4 px-6 py-5">
-              <p className="text-[14px] font-semibold text-[color:var(--color-foreground)]">
-                What do you want your agent to do?
-              </p>
-              <textarea
-                value={agentDescription}
-                onChange={(event) => setAgentDescription(event.target.value)}
-                placeholder="Describe the agent's job (e.g., summarize text, translate text into French, etc.)"
-                className="min-h-[200px] w-full rounded-md border border-[color:var(--color-brand)]/60 bg-white px-4 py-3 text-[14px] text-[color:var(--color-foreground)] shadow-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--color-brand)]/40"
-              />
-              <p className="text-[12px] text-[color:var(--color-muted)]">
-                The agent description requires at least 10 characters.
-              </p>
-              <div className="flex items-center justify-between">
-                <Button
-                  variant="outline"
-                  className="h-9 rounded-md px-4 text-[13px]"
-                >
-                  Browse Templates
-                </Button>
-                <Button
-                  className="h-9 gap-2 rounded-md bg-[color:var(--color-brand)] px-4 text-[13px] text-white shadow-sm hover:brightness-105 disabled:opacity-60"
-                  disabled={agentDescription.trim().length < 10}
-                  onClick={() => {
-                    const description = agentDescription.trim();
-                    if (description.length < 10) {
-                      return;
-                    }
-                    setAgentModalOpen(false);
-                    setPolarisLaunching(true);
-                    window.dispatchEvent(new Event("polaris:open"));
-                    window.dispatchEvent(new Event("polaris:expand"));
-                    window.dispatchEvent(
-                      new CustomEvent("polaris:mode", {
-                        detail: {
-                          mode: "agent-setup",
-                          payload: {
-                            projectId: params.id,
-                            description,
-                          },
-                        },
-                      })
-                    );
-                    window.setTimeout(() => setPolarisLaunching(false), 1200);
-                  }}
-                >
-                  Create Agent
-                  <span className="text-[16px]">→</span>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <AgentCreateOverlay
+        open={agentModalOpen}
+        projectId={params.id ?? ""}
+        onClose={() => setAgentModalOpen(false)}
+      />
     </div>
   );
 }

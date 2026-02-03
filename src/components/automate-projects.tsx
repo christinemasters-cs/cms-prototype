@@ -2,19 +2,24 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Bell,
+  Clock,
   Filter,
+  HelpCircle,
   Plus,
   Search,
   Settings,
-  Sparkles,
   Star,
   Trash2,
+  User,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
+import { AgentOsBadge } from "@/components/agent-os-badge";
+import { AppSwitcher } from "@/components/app-switcher";
 import { PolarisPanel } from "@/components/polaris-panel";
 
 type Project = {
@@ -224,12 +229,7 @@ export function AutomateProjects() {
       <header className="sticky top-0 z-20 border-b border-[color:var(--color-border)] bg-white/95 backdrop-blur">
         <div className="mx-auto flex w-full items-center justify-between px-6 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 items-center gap-2 rounded-md border border-[color:var(--color-border)] bg-white px-3 text-[13px] font-semibold text-[color:var(--color-brand)] shadow-sm">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[color:var(--color-brand-soft)]">
-                <Sparkles className="h-4 w-4 text-[color:var(--color-brand)]" />
-              </div>
-              Contentstack Agent OS
-            </div>
+            <AgentOsBadge />
             <Button variant="ghost" size="sm" className="gap-2 text-[13px]">
               <Settings className="h-4 w-4" />
               Settings
@@ -237,15 +237,22 @@ export function AutomateProjects() {
           </div>
           <div className="flex items-center gap-2">
             <PolarisPanel pageContext="Automations" />
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Sparkles className="h-4 w-4 text-[color:var(--color-brand)]" />
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Search">
+              <Search className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <span className="text-sm font-semibold text-[color:var(--color-muted)]">
-                ?
-              </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label="Notifications"
+            >
+              <Bell className="h-5 w-5" />
             </Button>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[11px] font-semibold text-[color:var(--color-muted)]">
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Help">
+              <HelpCircle className="h-5 w-5" />
+            </Button>
+            <AppSwitcher />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--color-surface-muted)] text-[11px] font-semibold">
               CM
             </div>
           </div>
@@ -253,10 +260,11 @@ export function AutomateProjects() {
       </header>
 
       <div className="dashboard-shell">
-        <main className="mx-auto w-full px-6 py-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <h1 className="text-[20px] font-semibold text-[color:var(--text-primary-text-gray-900-body-black)]">
+        <main className="mx-auto w-full bg-[#f7f9fc] px-10 py-10 text-[16px] leading-[16px]">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-wrap items-center justify-between gap-5">
+              <div className="flex flex-wrap items-center gap-5">
+              <h1 className="text-[20px] font-semibold tracking-[0.2px] [font-variation-settings:'slnt'_0] text-[color:var(--text-primary-text-gray-900-body-black)]">
                 Automate Projects
               </h1>
               <div className="relative">
@@ -284,110 +292,126 @@ export function AutomateProjects() {
               <Plus className="h-4 w-4" />
               New Project
             </Button>
-          </div>
-
-        {creating ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-[color:var(--color-border)] bg-white p-4 shadow-sm">
-            <Input
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-              placeholder="Project name"
-              className="h-9 w-[280px] rounded-md border-[color:var(--color-border)] text-[13px]"
-            />
-            <Button
-              onClick={handleCreate}
-              className="h-9 gap-2 rounded-md bg-[color:var(--color-brand)] px-4 text-[13px] text-white shadow-sm hover:brightness-105"
-            >
-              Create project
-            </Button>
-            <Button
-              variant="ghost"
-              className="h-9 text-[13px]"
-              onClick={() => {
-                setCreating(false);
-                setNewName("");
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        ) : null}
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {filtered.map((project) => (
-            <Card
-              key={project.id}
-              className="relative rounded-xl border border-[color:var(--color-border)] bg-white shadow-sm transition hover:border-[color:var(--color-brand)]"
-            >
-              <Link
-                href={`/automations/projects/${project.id}`}
-                className="absolute inset-0 z-0 rounded-xl"
-                aria-label={`Open ${project.name}`}
-              />
-              <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
-                <CardTitle className="text-[14px] font-semibold text-[color:var(--color-foreground)]">
-                  {project.name}
-                </CardTitle>
-                <div className="relative z-10 flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={`h-7 w-7 ${
-                      project.starred ? "text-[color:var(--color-brand)]" : ""
-                    }`}
-                    aria-label={
-                      project.starred ? "Unstar project" : "Star project"
-                    }
-                    onClick={(event) => {
-                      event.preventDefault();
-                      handleStar(project);
-                    }}
-                  >
-                    <Star className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-[color:var(--color-muted)]"
-                    aria-label="Delete project"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      handleDelete(project);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-2 text-center text-[12px] text-[color:var(--color-muted)]">
-                  <div className="rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)]/40 py-2">
-                    <div className="text-[16px] font-semibold text-[color:var(--color-foreground)]">
-                      {project.automations}
-                    </div>
-                    Automations
-                  </div>
-                  <div className="rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)]/40 py-2">
-                    <div className="text-[16px] font-semibold text-[color:var(--color-foreground)]">
-                      {project.connectedApps}
-                    </div>
-                    Connected Apps
-                  </div>
-                </div>
-                <div className="flex items-center justify-between rounded-md bg-[color:var(--color-brand-soft)]/50 px-3 py-2 text-[12px] text-[color:var(--color-muted)]">
-                  <span>{project.members} User</span>
-                  <span>{formatDate(project.updatedAt)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-          {filtered.length === 0 ? (
-            <div className="mt-12 text-center text-sm text-[color:var(--color-muted)]">
-              No projects match your search.
             </div>
-          ) : null}
+
+            {creating ? (
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[color:var(--color-border)] bg-white p-4 shadow-sm">
+                <Input
+                  value={newName}
+                  onChange={(event) => setNewName(event.target.value)}
+                  placeholder="Project name"
+                  className="h-9 w-[280px] rounded-md border-[color:var(--color-border)] text-[13px]"
+                />
+                <Button
+                  onClick={handleCreate}
+                  className="h-9 gap-2 rounded-md bg-[color:var(--color-brand)] px-4 text-[13px] text-white shadow-sm hover:brightness-105"
+                >
+                  Create project
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="h-9 text-[13px]"
+                  onClick={() => {
+                    setCreating(false);
+                    setNewName("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : null}
+
+            <div className="mt-10 grid justify-start gap-5 pr-5 pb-5 [grid-template-columns:repeat(auto-fill,minmax(20rem,20rem))]">
+              {filtered.map((project) => (
+                <Card
+                  key={project.id}
+                  className="relative w-full max-w-[20rem] rounded-[4px] border border-[#dde3ee] bg-white transition-shadow duration-300 ease-in-out hover:shadow-md"
+                >
+                  <Link
+                    href={`/automations/projects/${project.id}`}
+                    className="absolute inset-0 z-0 rounded-[4px]"
+                    aria-label={`Open ${project.name}`}
+                  />
+                  <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
+                    <CardTitle className="text-[16px] font-semibold leading-[1.5] tracking-[0.16px] text-[#212121]">
+                      {project.name}
+                    </CardTitle>
+                    <div className="relative z-10 flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-7 w-7 ${
+                          project.starred ? "text-[color:var(--color-brand)]" : ""
+                        }`}
+                        aria-label={
+                          project.starred ? "Unstar project" : "Star project"
+                        }
+                        onClick={(event) => {
+                          event.preventDefault();
+                          handleStar(project);
+                        }}
+                      >
+                        <Star className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-[color:var(--color-muted)]"
+                        aria-label="Delete project"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          handleDelete(project);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="space-y-3 px-6 pt-4 pb-4">
+                      <div className="flex items-center justify-between text-[12px] text-[color:var(--color-muted)]">
+                        <div className="flex flex-1 items-center justify-between gap-3">
+                          <span className="text-[12px] font-normal leading-[18px] tracking-[-0.00228px]">
+                            Automations
+                          </span>
+                          <span className="mb-1 text-[14px] font-semibold leading-[21px] text-[color:var(--color-foreground)]">
+                            {project.automations}
+                          </span>
+                        </div>
+                        <div className="mx-3 h-8 w-px bg-[color:var(--color-border)]" />
+                        <div className="flex flex-1 items-center justify-between gap-3">
+                          <span className="text-[12px] font-normal leading-[18px] tracking-[-0.00228px]">
+                            Connected Apps
+                          </span>
+                          <span className="mb-1 text-[14px] font-semibold leading-[21px] text-[color:var(--color-foreground)]">
+                            {project.connectedApps}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex h-14 items-center justify-between rounded-b-[4px] rounded-t-none bg-[#edebff] px-[15px] py-[24px] text-[16px] leading-[16px] text-[color:var(--color-muted)]">
+                      <span className="flex items-center gap-[5px] text-[12px] font-normal leading-[12px] tracking-[0.24px]">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white">
+                          <User className="h-3.5 w-3.5" />
+                        </span>
+                        {project.members} User
+                      </span>
+                      <span className="flex items-center gap-[5px] text-[12px] font-normal leading-[12px] tracking-[0.24px]">
+                        <Clock className="h-3.5 w-3.5" />
+                        {formatDate(project.updatedAt)}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="text-center text-sm text-[color:var(--color-muted)]">
+                No projects match your search.
+              </div>
+            ) : null}
+          </div>
         </main>
         <aside
           id="polaris-dock"
